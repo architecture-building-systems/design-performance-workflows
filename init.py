@@ -16,8 +16,6 @@ import subprocess
 import os
 import datetime
 
-from __init__ import configuration  # pyflakes prefers explicit
-
 # set up logging
 import logging
 LOG_FILENAME = os.path.join(tempfile.gettempdir(),
