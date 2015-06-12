@@ -19,7 +19,7 @@ import datetime
 # set up logging
 import logging
 LOG_FILENAME = os.path.join(tempfile.gettempdir(),
-                            'UmemVistrailsModules.log')
+                            'design-performance-workflows.log')
 logging.basicConfig(filename=LOG_FILENAME,
                     level=logging.INFO)
 
@@ -117,20 +117,20 @@ class RunEnergyPlus(NotCacheable, Module):
     The idf is expected to be a string containing the contents of the file.
     The epw_path is expected to be the path to a *.epw weather file.
     """
-    _input_ports = [('idf', basic.String),
-                    ('epw_path', basic.String),
-                    ('energyplus_path', basic.String, {'optional': True})]
-    _output_ports = [('results_path', basic.String)]
+    _input_ports = [('idf', Idf),
+                    ('epw', basic.File),
+                    ('idd', basic.File, {'optional': True}),
+                    ('energyplus', basic.File, {'optional': True})]
+    _output_ports = [('results', basic.Path)]
 
     def compute(self):
         import os
         import shutil
-        idf = self.getInputFromPort('idf')
-        epw_path = self.getInputFromPort('epw_path')
-        energyplus_path = self.forceGetInputFromPort(
-            'energyplus_path',
-            configuration.ENERGYPLUS_PATH)
-        logger = logging.getLogger('UMEM.RunEnergyPlus')
+        idf = self.get_input('idf')
+        idd_path = force_get_path(self, 'idd', find_idd())
+        epw_path = self.get_input('epw').name
+        energyplus_path = force_get_path(self, 'energyplus', find_energyplus())
+        logger = logging.getLogger('dpw.RunEnergyPlus')
         logger.info('epw_path=%s', epw_path)
 
         tmp = tempfile.mkdtemp(
@@ -141,7 +141,7 @@ class RunEnergyPlus(NotCacheable, Module):
         with open(idf_path, 'w') as out:
             out.write(idf)
         logger.info('idf_path=%s', idf_path)
-        shutil.copy(configuration.ENERGYPLUS_IDD_PATH, tmp)
+        shutil.copy(idd_path, tmp)
         shutil.copyfile(epw_path, os.path.join(tmp, 'in.epw'))
 
         logger.info('energyplus_path=%s', energyplus_path)
@@ -596,6 +596,83 @@ class FileToList(NotCacheable, Module):
         self.setResult('list', result)
 
 
+class Idf(NotCacheable, Module):
+    '''
+    Wraps an eppy IDF3 object for use in the VisTrails system.
+
+    the default EnergyPlus IDD file will be used if none is
+    specified. This is done by looking through $PATH to find
+    the EnergyPlus executable and use the `Energy+.idd` file
+    in the same folder.
+    '''
+    _input_ports = [
+        ('idf', basic.Path, {'optional': True}),
+        ('idd', basic.Path, {'optional': True}),
+    ]
+
+    def compute(self):
+        from eppy.modeleditor import IDF, IDDAlreadySetError
+        from StringIO import StringIO
+
+        idf = self.force_get_input('idf', None)
+        idd = self.force_get_input('idd', None)
+
+        if idd:
+            idd_path = idd.name
+        else:
+            idd_path = find_idd()
+
+        try:
+            IDF.setiddname(idd_path)
+        except IDDAlreadySetError:
+            pass
+
+        if idf:
+            idf_file = open(idf.name, 'r')
+        else:
+            idf_file = StringIO('')
+        self.idf = IDF(idf_file)
+
+
+
+def find_idd():
+    '''
+    find the default IDD file.
+    '''
+    import os
+    import distutils.spawn
+    try:
+        energyplus = find_energyplus()
+        folder = os.path.dirname(energyplus)
+        idd = os.path.join(folder, 'Energy+.idd')
+        if not os.path.isfile(idd):
+            raise Exception('Could not find default Energy+.idd in %s' % folder)
+        return os.path.join(os.path.dirname(energyplus))
+    except:
+        raise Exception('Could not find default Energy+.idd')
+
+def find_energyplus():
+    '''
+    find the default EnergyPlus executable
+    '''
+    import distutils.spawn
+    energyplus = distutils.spawn.find_executable('EnergyPlus')
+    if not energyplus:
+        raise Exception('Could not find default EnergyPlus executable')
+    return energyplus
+
+
+def force_get_path(module, name, default):
+    '''returns a string representing the path of a Path input module
+    of `module` with the name `name`. If that is not set, then `default`
+    is returned.
+    '''
+    value = module.force_get_input(name, None)
+    if value:
+        return value.name
+    else:
+        return default
+
 _modules = [
     AcquireModelSnapshot,
     AddFmuToIdf,
@@ -605,6 +682,7 @@ _modules = [
     EnergyPlusToFmu,
     FileToList,
     GenerateIdf,
+    Idf,
     RevitToCitySim,
     RunCitySim,
     RunEnergyPlus,
