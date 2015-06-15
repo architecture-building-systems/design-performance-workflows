@@ -23,6 +23,43 @@ LOG_FILENAME = os.path.join(tempfile.gettempdir(),
 logging.basicConfig(filename=LOG_FILENAME,
                     level=logging.INFO)
 
+class Idf(NotCacheable, Module):
+    '''
+    Wraps an eppy IDF3 object for use in the VisTrails system.
+
+    the default EnergyPlus IDD file will be used if none is
+    specified. This is done by looking through $PATH to find
+    the EnergyPlus executable and use the `Energy+.idd` file
+    in the same folder.
+    '''
+    _input_ports = [
+        ('idf', basic.Path, {'optional': True}),
+        ('idd', basic.Path, {'optional': True}),
+    ]
+
+    def compute(self):
+        from eppy.modeleditor import IDF, IDDAlreadySetError
+        from StringIO import StringIO
+
+        idf = self.force_get_input('idf', None)
+        idd = force_get_path(self, 'idd', find_idd())
+
+        try:
+            IDF.setiddname(idd)
+        except IDDAlreadySetError:
+            pass
+
+        if idf:
+            idf_file = open(idf.name, 'r')
+        else:
+            idf_file = StringIO('')
+        self.idf = IDF(idf_file)
+        self.set_output('idf', self)
+
+    def idfstr(self):
+        return self.idf.idfstr()
+Idf._output_ports = [('idf', Idf)]
+
 
 class AcquireModelSnapshot(NotCacheable, Module):
     '''
@@ -139,7 +176,7 @@ class RunEnergyPlus(NotCacheable, Module):
         logger.info('cwd=%s', tmp)
         idf_path = os.path.join(tmp, 'in.idf')
         with open(idf_path, 'w') as out:
-            out.write(idf)
+            out.write(idf.idf.idfstr())
         logger.info('idf_path=%s', idf_path)
         shutil.copy(idd_path, tmp)
         shutil.copyfile(epw_path, os.path.join(tmp, 'in.epw'))
@@ -148,7 +185,7 @@ class RunEnergyPlus(NotCacheable, Module):
         subprocess.check_call([energyplus_path],
                               cwd=tmp)
 
-        self.setResult('results_path', tmp)
+        self.set_output('results_path', tmp)
 
 
 class SaveResults(NotCacheable, Module):
@@ -596,42 +633,6 @@ class FileToList(NotCacheable, Module):
         self.setResult('list', result)
 
 
-class Idf(NotCacheable, Module):
-    '''
-    Wraps an eppy IDF3 object for use in the VisTrails system.
-
-    the default EnergyPlus IDD file will be used if none is
-    specified. This is done by looking through $PATH to find
-    the EnergyPlus executable and use the `Energy+.idd` file
-    in the same folder.
-    '''
-    _input_ports = [
-        ('idf', basic.Path, {'optional': True}),
-        ('idd', basic.Path, {'optional': True}),
-    ]
-
-    def compute(self):
-        from eppy.modeleditor import IDF, IDDAlreadySetError
-        from StringIO import StringIO
-
-        idf = self.force_get_input('idf', None)
-        idd = self.force_get_input('idd', None)
-
-        if idd:
-            idd_path = idd.name
-        else:
-            idd_path = find_idd()
-
-        try:
-            IDF.setiddname(idd_path)
-        except IDDAlreadySetError:
-            pass
-
-        if idf:
-            idf_file = open(idf.name, 'r')
-        else:
-            idf_file = StringIO('')
-        self.idf = IDF(idf_file)
 
 
 
@@ -647,7 +648,7 @@ def find_idd():
         idd = os.path.join(folder, 'Energy+.idd')
         if not os.path.isfile(idd):
             raise Exception('Could not find default Energy+.idd in %s' % folder)
-        return os.path.join(os.path.dirname(energyplus))
+        return idd
     except:
         raise Exception('Could not find default Energy+.idd')
 
