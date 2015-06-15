@@ -185,7 +185,7 @@ class RunEnergyPlus(NotCacheable, Module):
         subprocess.check_call([energyplus_path],
                               cwd=tmp)
 
-        self.set_output('results_path', tmp)
+        self.set_output('results', basic.PathObject(tmp))
 
 
 class SaveResults(NotCacheable, Module):
@@ -219,15 +219,15 @@ class SaveEnergyPlusResults(NotCacheable, Module):
     use a directory name for target_path.
     use a basename for target_name (like: test01).
     """
-    _input_ports = [('source_path', basic.String),
-                    ('target_path', basic.String),
+    _input_ports = [('source_path', basic.Path),
+                    ('target_path', basic.Path),
                     ('target_name', basic.String)]
 
     def compute(self):
         import shutil
         import os
-        source_path = self.getInputFromPort('source_path')
-        target_path = self.getInputFromPort('target_path')
+        source_path = self.getInputFromPort('source_path').name
+        target_path = self.getInputFromPort('target_path').name
         target_name = self.getInputFromPort('target_name')
         shutil.copyfile(os.path.join(source_path, 'eplusout.eso'),
                         os.path.join(target_path, target_name + '.eso'))
