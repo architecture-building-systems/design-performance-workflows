@@ -60,7 +60,6 @@ class Idf(NotCacheable, Module):
 
     def idfstr(self):
         return self.idf.idfstr()
-
 Idf._output_ports = [('idf', Idf)]
 
 
