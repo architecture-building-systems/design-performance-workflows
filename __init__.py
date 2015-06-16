@@ -13,3 +13,6 @@ Architecture and Building Systems (A/S), ITA, ETH Zürich.
 identifier = 'ch.ethz.arch.systems.design-performance-workflows'
 name = 'design-performance-workflows'
 version = '0.1.0'
+
+
+# FIXME: add requirement: lxml

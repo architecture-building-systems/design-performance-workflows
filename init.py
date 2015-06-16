@@ -7,7 +7,7 @@
 # Technology in Architecture, ETH Zürich. See http://systems.arch.ethz.ch for
 # more information.
 
-from vistrails.core.modules.vistrails_module import NotCacheable, Module
+from vistrails.core.modules.vistrails_module import NotCacheable, Module, IPort, OPort
 import vistrails.core.modules.basic_modules as basic
 
 import xml.etree.ElementTree as ET
@@ -16,12 +16,46 @@ import subprocess
 import os
 import datetime
 
-# set up logging
-import logging
-LOG_FILENAME = os.path.join(tempfile.gettempdir(),
-                            'design-performance-workflows.log')
-logging.basicConfig(filename=LOG_FILENAME,
-                    level=logging.INFO)
+
+class XmlElementTree(NotCacheable, Module):
+    '''
+    A module to use as output and input ports that contain
+    XML data.
+
+    CONVENTION: ports with type XmlElementTree exchange
+    xml.etree.ElementTree objects.
+    '''
+    _input_ports = [IPort(name='file',
+                          signature='basic:File',
+                          label='An XML file to read')]
+    _output_ports = [OPort(name='xml',
+                           signature='ch.ethz.arch.systems.design-performance-workflows:XmlElementTree')]
+    def compute(self):
+        from lxml import etree
+        path = self.get_input('file')
+        xml = etree.parse(open(path, 'r'))
+        self.set_output('xml', xml)
+
+
+class ModelSnapshot(XmlElementTree):
+    '''
+    Wraps an XML serialization of a DPV ModelSnapshot object
+    for use in the VisTrails system.
+
+    CONVENTION: ports with type ModelSnapshot exchange
+    xml.etree.ElementTree objects.
+    '''
+    _input_ports = [IPort(name='file',
+                          signature='basic:File',
+                          label='An XML file to read')]
+    _output_ports = [OPort(name='snapshot',
+                           signature='ch.ethz.arch.systems.design-performance-workflows:ModelSnapshot')]
+    def compute(self):
+        from lxml import etree
+        path = self.get_input('file')
+        snapshot = etree.parse(open(path, 'r'))
+        self.set_output('snapshot', snapshot)
+
 
 class Idf(NotCacheable, Module):
     '''
@@ -35,9 +69,15 @@ class Idf(NotCacheable, Module):
     CONVENTION: ports with type Idf exchange eppy.IDF instances.
     '''
     _input_ports = [
-        ('idf', basic.Path, {'optional': True}),
-        ('idd', basic.Path, {'optional': True}),
+        IPort(name='idf',
+              signature='basic:Path',
+              optional=True),
+        IPort(name='idd',
+              signature='basic:Path',
+              optional=True),
     ]
+    _output_ports = [OPort(name='idf',
+                           signature='ch.ethz.arch.systems.design-performance-workflows:Idf')]
 
     def compute(self):
         from eppy.modeleditor import IDF, IDDAlreadySetError
@@ -58,10 +98,6 @@ class Idf(NotCacheable, Module):
         self.idf = IDF(idf_file)
         self.set_output('idf', self.idf)
 
-    def idfstr(self):
-        return self.idf.idfstr()
-Idf._output_ports = [('idf', Idf)]
-
 
 class AcquireModelSnapshot(NotCacheable, Module):
     '''
@@ -72,32 +108,58 @@ class AcquireModelSnapshot(NotCacheable, Module):
     to the DPV web server (typically localhost on port 8010, but the
     port can be changed in the DPV configuration file).
     '''
-    _output_ports = [('snapshot', basic.String)]
+    _input_ports = [IPort(name='url',
+                          signature='basic:String',
+                          label='URL of DPV BIM snapshot extraction',
+                          default='http://localhost:8010/snapshot',
+                          optional=True)]
+
+
+    _output_ports = [OPort(name='snapshot',
+                           signature='ch.ethz.arch.systems.design-performance-workflows:ModelSnapshot')]
 
     def compute(self):
-        import urllib2
-        url = configuration.BIM_URL
-        logger = logging.getLogger('UMEM.AcquireModelSnapshot')
-        logger.info('url=%s', url)
-        content = urllib2.urlopen(url).read()
-        self.setResult('snapshot', content)
+        url = self.get_input('url')
+        from lxml import etree
+        snapshot = etree.parse(url)
+        self.set_output('snapshot', snapshot)
 
 
 class GenerateIdf(NotCacheable, Module):
     '''
     Send a ModelSnapshot to the BIM/DPV to be converted to an IDF file.
     '''
-    _input_ports = [('snapshot', basic.String)]
-    _output_ports = [('idf', basic.String)]
+    _input_ports = [IPort(name='snapshot',
+                          signature='ch.ethz.arch.systems.design-performance-workflows:ModelSnapshot'),
+                    IPort(name='url',
+                          signature='basic:String',
+                          default='http://localhost:8014/idf',
+                          optional=True),
+                    IPort(name='idd',
+                        signature='basic:Path',
+                        optional=True)]
+    _output_ports = [OPort(name='idf',
+                           signature='ch.ethz.arch.systems.design-performance-workflows:Idf')]
 
     def compute(self):
         import requests
-        url = 'http://localhost:8014/idf'
-        logger = logging.getLogger('UMEM.GenerateIdf')
-        logger.info('url=%s', url)
-        snapshot = self.getInputFromPort('snapshot')
-        r = requests.post(url, snapshot)
-        self.setResult('idf', r.text)
+        from lxml import etree
+        from eppy.modeleditor import IDF, IDDAlreadySetError
+        from StringIO import StringIO
+
+        url = self.get_input('url')
+        snapshot = self.get_input('snapshot')
+        r = requests.post(url, etree.tostring(snapshot))
+        idf_file = StringIO(r.text)
+
+        idd = force_get_path(self, 'idd', find_idd())
+        try:
+            IDF.setiddname(idd)
+        except IDDAlreadySetError:
+            pass
+
+        self.idf = IDF(idf_file)
+        self.set_output('idf', self.idf)
 
 
 class AddFmuToIdf(NotCacheable, Module):
@@ -686,6 +748,7 @@ _modules = [
     FileToList,
     GenerateIdf,
     Idf,
+    ModelSnapshot,
     RevitToCitySim,
     RunCitySim,
     RunEnergyPlus,
@@ -695,6 +758,7 @@ _modules = [
     SaveEnergyPlusResults,
     SaveCoSimResults,
     SaveResults,
+    XmlElementTree,
     XPath,
     XPathSetAttribute,
 ]
