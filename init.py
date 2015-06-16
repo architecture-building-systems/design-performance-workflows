@@ -31,6 +31,8 @@ class Idf(NotCacheable, Module):
     specified. This is done by looking through $PATH to find
     the EnergyPlus executable and use the `Energy+.idd` file
     in the same folder.
+
+    CONVENTION: ports with type Idf exchange eppy.IDF instances.
     '''
     _input_ports = [
         ('idf', basic.Path, {'optional': True}),
@@ -54,10 +56,11 @@ class Idf(NotCacheable, Module):
         else:
             idf_file = StringIO('')
         self.idf = IDF(idf_file)
-        self.set_output('idf', self)
+        self.set_output('idf', self.idf)
 
     def idfstr(self):
         return self.idf.idfstr()
+
 Idf._output_ports = [('idf', Idf)]
 
 
@@ -176,7 +179,7 @@ class RunEnergyPlus(NotCacheable, Module):
         logger.info('cwd=%s', tmp)
         idf_path = os.path.join(tmp, 'in.idf')
         with open(idf_path, 'w') as out:
-            out.write(idf.idf.idfstr())
+            out.write(idf.idfstr())
         logger.info('idf_path=%s', idf_path)
         shutil.copy(idd_path, tmp)
         shutil.copyfile(epw_path, os.path.join(tmp, 'in.epw'))
