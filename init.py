@@ -150,16 +150,17 @@ class GenerateIdf(NotCacheable, Module):
         url = self.get_input('url')
         snapshot = self.get_input('snapshot')
         r = requests.post(url, etree.tostring(snapshot))
-        idf_file = StringIO(r.text)
-
-        idd = force_get_path(self, 'idd', find_idd())
-        try:
-            IDF.setiddname(idd)
-        except IDDAlreadySetError:
-            pass
-
-        self.idf = IDF(idf_file)
-        self.set_output('idf', self.idf)
+        if r.ok:
+            idf_file = StringIO(r.text.strip().replace('\r\n', '\n'))
+            idd = force_get_path(self, 'idd', find_idd())
+            try:
+                IDF.setiddname(idd)
+            except IDDAlreadySetError:
+                pass
+            self.idf = IDF(idf_file)
+            self.set_output('idf', self.idf)
+        else:
+            raise Exception('Could not request IDF from BIM')
 
 
 class AddFmuToIdf(NotCacheable, Module):
@@ -231,24 +232,16 @@ class RunEnergyPlus(NotCacheable, Module):
         idd_path = force_get_path(self, 'idd', find_idd())
         epw_path = self.get_input('epw').name
         energyplus_path = force_get_path(self, 'energyplus', find_energyplus())
-        logger = logging.getLogger('dpw.RunEnergyPlus')
-        logger.info('epw_path=%s', epw_path)
-
         tmp = tempfile.mkdtemp(
             prefix=datetime.datetime.now().strftime('%Y.%m.%d.%H.%M.%S')
             + "_RunEnergyPlus_")
-        logger.info('cwd=%s', tmp)
         idf_path = os.path.join(tmp, 'in.idf')
         with open(idf_path, 'w') as out:
             out.write(idf.idfstr())
-        logger.info('idf_path=%s', idf_path)
         shutil.copy(idd_path, tmp)
         shutil.copyfile(epw_path, os.path.join(tmp, 'in.epw'))
-
-        logger.info('energyplus_path=%s', energyplus_path)
         subprocess.check_call([energyplus_path],
                               cwd=tmp)
-
         self.set_output('results', basic.PathObject(tmp))
 
 
@@ -290,9 +283,9 @@ class SaveEnergyPlusResults(NotCacheable, Module):
     def compute(self):
         import shutil
         import os
-        source_path = self.getInputFromPort('source_path').name
-        target_path = self.getInputFromPort('target_path').name
-        target_name = self.getInputFromPort('target_name')
+        source_path = self.get_input('source_path').name
+        target_path = self.get_input('target_path').name
+        target_name = self.get_input('target_name')
         shutil.copyfile(os.path.join(source_path, 'eplusout.eso'),
                         os.path.join(target_path, target_name + '.eso'))
         shutil.copyfile(os.path.join(source_path, 'eplusout.err'),
