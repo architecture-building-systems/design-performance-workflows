@@ -7,10 +7,10 @@
 # Technology in Architecture, ETH Zürich. See http://systems.arch.ethz.ch for
 # more information.
 
-from vistrails.core.modules.vistrails_module import NotCacheable, Module, IPort, OPort
+from vistrails.core.modules.vistrails_module import (
+    NotCacheable, Module, IPort, OPort)
 import vistrails.core.modules.basic_modules as basic
 
-import xml.etree.ElementTree as ET
 import tempfile
 import subprocess
 import os
@@ -29,7 +29,8 @@ class XmlElementTree(NotCacheable, Module):
                           signature='basic:File',
                           label='An XML file to read')]
     _output_ports = [OPort(name='xml',
-                           signature='ch.ethz.arch.systems.design-performance-workflows:XmlElementTree')]
+                           signature='ch.ethz.arch.systems.design-performance-workflows:XmlElementTree')]  # noqa
+
     def compute(self):
         from lxml import etree
         path = self.get_input('file')
@@ -49,12 +50,34 @@ class ModelSnapshot(XmlElementTree):
                           signature='basic:File',
                           label='An XML file to read')]
     _output_ports = [OPort(name='snapshot',
-                           signature='ch.ethz.arch.systems.design-performance-workflows:ModelSnapshot')]
+                           signature='ch.ethz.arch.systems.design-performance-workflows:ModelSnapshot')]  # noqa
+
     def compute(self):
         from lxml import etree
         path = self.get_input('file')
         snapshot = etree.parse(open(path, 'r'))
         self.set_output('snapshot', snapshot)
+
+
+class CitySimXml(XmlElementTree):
+    '''
+    Wraps the XML file used to describe a CitySim scene for
+    use in the VisTrails system.
+
+    CONVENTION: ports with type CitySimXml exchange
+    xml.etree.ElementTree objects.
+    '''
+    _input_ports = [IPort(name='file',
+                          signature='basic:File',
+                          label='A CitySim XML file to read')]
+    _output_ports = [OPort(name='citysim_xml',
+                           signature='ch.ethz.arch.systems.design-performance-workflows:CitySimXml')]  # noqa
+
+    def compute(self):
+        from lxml import etree
+        path = self.get_input('file').name
+        scene = etree.parse(open(path, 'r'))
+        self.set_output('citysim_xml', scene)
 
 
 class Idf(NotCacheable, Module):
@@ -77,7 +100,7 @@ class Idf(NotCacheable, Module):
               optional=True),
     ]
     _output_ports = [OPort(name='idf',
-                           signature='ch.ethz.arch.systems.design-performance-workflows:Idf')]
+                           signature='ch.ethz.arch.systems.design-performance-workflows:Idf')]  # noqa
 
     def compute(self):
         from eppy.modeleditor import IDF, IDDAlreadySetError
@@ -114,9 +137,8 @@ class AcquireModelSnapshot(NotCacheable, Module):
                           default='http://localhost:8010/snapshot',
                           optional=True)]
 
-
     _output_ports = [OPort(name='snapshot',
-                           signature='ch.ethz.arch.systems.design-performance-workflows:ModelSnapshot')]
+                           signature='ch.ethz.arch.systems.design-performance-workflows:ModelSnapshot')]  # noqa
 
     def compute(self):
         url = self.get_input('url')
@@ -130,7 +152,7 @@ class GenerateIdf(NotCacheable, Module):
     Send a ModelSnapshot to the BIM/DPV to be converted to an IDF file.
     '''
     _input_ports = [IPort(name='snapshot',
-                          signature='ch.ethz.arch.systems.design-performance-workflows:ModelSnapshot'),
+                          signature='ch.ethz.arch.systems.design-performance-workflows:ModelSnapshot'),  # noqa
                     IPort(name='url',
                           signature='basic:String',
                           default='http://localhost:8014/idf',
@@ -139,7 +161,7 @@ class GenerateIdf(NotCacheable, Module):
                         signature='basic:Path',
                         optional=True)]
     _output_ports = [OPort(name='idf',
-                           signature='ch.ethz.arch.systems.design-performance-workflows:Idf')]
+                           signature='ch.ethz.arch.systems.design-performance-workflows:Idf')]  # noqa
 
     def compute(self):
         import requests
@@ -245,27 +267,6 @@ class RunEnergyPlus(NotCacheable, Module):
         self.set_output('results', basic.PathObject(tmp))
 
 
-class SaveResults(NotCacheable, Module):
-    """
-    Save a results file to the RESULTS_PATH for further
-    analysis.
-    """
-    _input_ports = [('base_path', basic.String),
-                    ('relative_path', basic.String),
-                    ('new_file_name', basic.String)]
-
-    def compute(self):
-        import shutil
-        import os
-        base_path = self.getInputFromPort('base_path')
-        relative_path = self.getInputFromPort('relative_path')
-        new_file_name = self.getInputFromPort('new_file_name')
-        shutil.copyfile(os.path.join(base_path, relative_path),
-                        os.path.join(
-                            configuration.RESULTS_PATH,
-                            new_file_name))
-
-
 class SaveEnergyPlusResults(NotCacheable, Module):
     """
     Save the results of an EnergyPlus run (.eso, .err file)
@@ -326,6 +327,37 @@ class SaveCoSimResults(NotCacheable, Module):
                         os.path.join(target_path, target_basename + '.rdd'))
         shutil.copyfile(os.path.join(source_path, eplus_basename + '.idf'),
                         os.path.join(target_path, target_basename + '.idf'))
+        shutil.copyfile(os.path.join(source_path,
+                                     citysim_basename + '_TH.out'),
+                        os.path.join(target_path, target_basename + '_TH.out'))
+        shutil.copyfile(os.path.join(source_path, citysim_basename + '.xml'),
+                        os.path.join(target_path, target_basename + '.xml'))
+
+
+class SaveCitySimResults(NotCacheable, Module):
+    """
+    Save the results of a CitySim simulation run to a specified directory,
+    renaming them...
+
+    use the output from RunCitySim
+    (citysim_basename, results_path)
+    """
+    _input_ports = [IPort(name='source_path',
+                          signature='basic:Directory'),
+                    IPort(name='citysim_basename',
+                          signature='basic:String'),
+                    IPort(name='target_path',
+                          signature='basic:Directory'),
+                    IPort(name='target_basename',
+                          signature='basic:String')]
+
+    def compute(self):
+        import shutil
+        import os
+        source_path = self.getInputFromPort('source_path').name
+        citysim_basename = self.getInputFromPort('citysim_basename')
+        target_path = self.getInputFromPort('target_path').name
+        target_basename = self.getInputFromPort('target_basename')
         shutil.copyfile(os.path.join(source_path,
                                      citysim_basename + '_TH.out'),
                         os.path.join(target_path, target_basename + '_TH.out'))
@@ -493,35 +525,40 @@ class RunMockCoSimulation(NotCacheable, Module):
 
 class RunCitySim(NotCacheable, Module):
     """Run just the CitySim simulation (no co-simulation)"""
-    _input_ports = [('citysim_xml', basic.String),
-                    ('cli_path', basic.String)]
-    _output_ports = [('results_path', basic.String),
-                     ('citysim_basename', basic.String)]
+    _input_ports = [IPort(name='citysim_xml',
+                          signature='ch.ethz.arch.systems.design-performance-workflows:CitySimXml'),
+                    IPort(name='cli_path',
+                          signature='basic:File',
+                          label='Path to the .cli (weather) file to use for simulation.'),
+                    IPort(name='citysim_exe',
+                          signature='basic:File',
+                          label='CitySim.exe')]
+    _output_ports = [OPort(name='results_path',
+                           signature='basic:Directory'),
+                     OPort(name='citysim_basename',
+                           signature='basic:String')]
 
     def compute(self):
-        citysim_xml = self.getInputFromPort('citysim_xml')
-        cli_path = self.getInputFromPort('cli_path')
+        citysim_xml = self.get_input('citysim_xml')
+        cli_path = self.get_input('cli_path').name
+        citysim_exe = self.get_input('citysim_exe').name
         tmp = tempfile.mkdtemp(
             prefix=datetime.datetime.now().strftime('%Y.%m.%d.%H.%M.%S')
             + "_RunCitySim_")
-        logger = logging.getLogger('UMEM.RunCitySim')
-        logger.info('cli_path=%s', cli_path)
-        logger.info('cwd=%s', tmp)
-        logger.info('citysim_xml_path=%s', citysim_xml)
-        logger.info('CITYSIM_PATH=%s', configuration.CITYSIM_PATH)
-        root = ET.fromstring(citysim_xml)
+        root = citysim_xml.getroot()
         root.find('Climate').set('location', cli_path)
-        building = root.find(".//Building[@Simulate='ep']")
-        building.set('Simulate', 'true')
+        # make sure we turn off co-simulation buildings:
+        for building in root.findall(".//Building[@Simulate='ep']"):
+            building.set('Simulate', 'true')
         citysim_xml_fd, citysim_xml_path = tempfile.mkstemp(
             suffix='.xml', dir=tmp)
         with os.fdopen(citysim_xml_fd, 'w') as citysim_xml_file:
-            ET.ElementTree(root).write(citysim_xml_file)
-        subprocess.check_call([configuration.CITYSIM_PATH,
+            citysim_xml.write(citysim_xml_file)
+        subprocess.check_call([citysim_exe,
                                citysim_xml_path],
                               cwd=tmp)
-        self.setResult('results_path', tmp)
-        self.setResult('citysim_basename',
+        self.set_output('results_path', basic.PathObject(tmp))
+        self.set_output('citysim_basename',
                        os.path.basename(citysim_xml_path)[:-4])
 
 
@@ -690,7 +727,31 @@ class FileToList(NotCacheable, Module):
         self.setResult('list', result)
 
 
+class CitySimToEnergyPlus(NotCacheable, Module):
+    '''
+    Extract an EnergyPlus model from a CitySim scene.
+    Uses the CitySim building id to find the building to
+    extract and uses a template for the single zone HVAC
+    system added. The script adds the materials and
+    constructions and surfaces to the template.
+    '''
+    _input_ports = [IPort(name='citysim',
+                          signature='ch.ethz.arch.systems.design-performance-workflows:CitySimXml'),
+                    IPort(name='building',
+                          signature='basic:String'),
+                    IPort(name='template',
+                          signature='ch.ethz.arch.systems.design-performance-workflows:Idf')]
+    _output_ports = [OPort(name='idf',
+                           signature='ch.ethz.arch.systems.design-performance-workflows:Idf')]
 
+    def compute(self):
+        import citysimtoenergyplus
+        reload(citysimtoenergyplus)
+        citysim = self.get_input('citysim')
+        building = self.get_input('building')
+        template = self.get_input('template')
+        idf = citysimtoenergyplus.extractidf(citysim=citysim, building=building, template=template)
+        self.set_output('idf', idf)
 
 
 def find_idd():
@@ -698,7 +759,6 @@ def find_idd():
     find the default IDD file.
     '''
     import os
-    import distutils.spawn
     try:
         energyplus = find_energyplus()
         folder = os.path.dirname(energyplus)
@@ -737,6 +797,7 @@ _modules = [
     AddFmuToIdfLwr,
     AddOutputVariable,
     AddOutputVariableList,
+    CitySimXml,
     EnergyPlusToFmu,
     FileToList,
     GenerateIdf,
@@ -749,8 +810,8 @@ _modules = [
     RunMockCoSimulation,
     StripInternalLoads,
     SaveEnergyPlusResults,
+    SaveCitySimResults,
     SaveCoSimResults,
-    SaveResults,
     XmlElementTree,
     XPath,
     XPathSetAttribute,
