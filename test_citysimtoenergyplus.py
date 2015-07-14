@@ -128,11 +128,26 @@ def test_add_floors():
                                           -25.55, -7.6602, 0.0])
 
 
-
-def test_add_floors_multizone():
-    assert False, 'create model, Daren!'
-    assert False, 'test outdoor boundary conditions!'
-    assert False, 'or do we just create single-zone-models??'
+def test_add_roofs():
+    building_xml = get_building_RevitModel_nowindows()
+    idf = construct_empty_idf()
+    citysimtoenergyplus.add_roofs(building_xml, idf,
+                                  {'4': 'TEST_CONSTRUCTION'})
+    assert len(idf.idfobjects['ROOFCEILING:DETAILED']), 'no roofs exported!'
+    assert len(idf.idfobjects['ROOFCEILING:DETAILED']) == 4, 'too many roofs exported!'
+    assert idf.getobject('ROOFCEILING:DETAILED', 'Roof15'), 'roof not exported or wrong name'
+    r0 = idf.getobject('ROOFCEILING:DETAILED', 'Roof15')
+    assert r0.Name == 'Roof15'
+    assert r0.Construction_Name == 'TEST_CONSTRUCTION'
+    assert r0.Zone_Name == 'Zone10'
+    assert r0.Outside_Boundary_Condition == 'Outdoors'
+    assert r0.Number_of_Vertices == 3
+    # FIXME: the below numbers might not be correct?
+    round2 = lambda x: round(float(x), 2)
+    assert map(round2, r0.obj[-3*3:]) == map(round2,
+                                             [4.29, -7.3981, 4.0,
+                                              4.29, 13.1727, 4.0,
+                                              -6.3076, 2.8873, 10.1185])
 
 
 def dequals(f1, f2):
@@ -143,8 +158,8 @@ def get_building_RevitModel_nowindows():
     citysim = get_RevitModel_nowindows()
     return citysimtoenergyplus.find_building('6', citysim)
 
+
 def get_RevitModel_nowindows():
     with open(os.path.join('testing', 'RevitModel_nowindows.xml'), 'r') as f:
         citysim = etree.parse(f)
     return citysim
-

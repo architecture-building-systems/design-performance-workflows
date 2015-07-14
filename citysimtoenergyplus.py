@@ -50,6 +50,25 @@ def add_floors(building_xml, idf, constructions):
             floor_idf.obj.append(v.get('z'))
 
 
+def add_roofs(building_xml, idf, constructions):
+    for roof_xml in building_xml.findall('Zone/Roof'):
+        roof_idf = idf.newidfobject('ROOFCEILING:DETAILED')
+        roof_idf.Name = 'Roof%s' % roof_xml.get('id')
+        roof_idf.Construction_Name = constructions[roof_xml.get('type')]
+        roof_idf.Zone_Name = 'Zone%s' % roof_xml.getparent().get('id')
+        roof_idf.Outside_Boundary_Condition = 'Outdoors'
+        roof_idf.Outside_Boundary_Condition_Object = ''
+        roof_idf.Sun_Exposure = 'SunExposed'
+        roof_idf.Wind_Exposure = 'WindExposed'
+        roof_idf.View_Factor_to_Ground = 'autocalculate'
+        vertices = [v for v in roof_xml.getchildren() if v.tag.startswith('V')]
+        roof_idf.Number_of_Vertices = len(vertices)
+        for v in vertices:
+            roof_idf.obj.append(v.get('x'))
+            roof_idf.obj.append(v.get('y'))
+            roof_idf.obj.append(v.get('z'))
+
+
 
 def add_constructions(citysim, building_xml, idf):
     '''
