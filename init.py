@@ -750,7 +750,7 @@ class CitySimToEnergyPlus(NotCacheable, Module):
         citysim = self.get_input('citysim')
         building = self.get_input('building')
         template = self.get_input('template')
-        idf = citysimtoenergyplus.extractidf(citysim=citysim, building=building, template=template)
+        idf = extractidf(citysim=citysim, building=building, template=template)
         self.set_output('idf', idf)
 
 
