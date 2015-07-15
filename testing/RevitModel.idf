@@ -672,8 +672,8 @@ Zone,
     0                                                 , !- Z Origin {m}
     1                                                 , !- Type
     1                                                 , !- Multiplier
-    6.4216                                            , !- Ceiling Height {m}
-    4076.7856                                         , !- Volume {m3}
+    6.3761                                            , !- Ceiling Height {m}
+    4047.9188                                         , !- Volume {m3}
     634.8540                                          , !- Floor Area
                                                       , !- Zone Inside Convection Algorithm
                                                       , !- Zone Outside Convection Algorithm
@@ -717,7 +717,7 @@ Schedule:Compact,
 ThermostatSetpoint:DualSetpoint,
     Thermostat_DEFAULT_ZONE_Dual_SP_Control           , !- Name
     HVACTemplate_Always_20                            , !- Heating Setpoint Temperature Schedule Name
-    HVACTemplate_Always_100                           ; !- Cooling Setpoint Temperature Schedule Name
+    HVACTemplate_Always_26                            ; !- Cooling Setpoint Temperature Schedule Name
 
 ZoneControl:Thermostat,
     DEFAULT_ZONE_Thermostat                           , !- Name
@@ -893,7 +893,7 @@ Output:Variable,
     Hourly                                            ; !- 
 
 Building,
-    RevitModel_nowindows                              , !- Name
+    RevitModel                                        , !- Name
     0.0000                                            , !- North Axis (deg)
     Suburbs                                           , !- Terrain
     0.0400                                            , !- Loads Convergence Tolerance Value
@@ -1185,9 +1185,9 @@ RoofCeiling:Detailed,
     WindExposed                                       , !- Wind Exposure
     autocalculate                                     , !- View Factor to Ground
     3                                                 , !- Number of Vertices
-    4.2900, -7.3981, 4.0000                           , !- X, Y, Z
-    4.2900, 13.1727, 4.0000                           , !- X, Y, Z
-    -6.3076, 2.8873, 10.1185                          ; !- X, Y, Z
+    4.2900, -7.4052, 4.0000                           , !- X, Y, Z
+    4.2900, 13.1798, 4.0000                           , !- X, Y, Z
+    -6.0025, 2.8873, 9.9424                           ; !- X, Y, Z
 
 RoofCeiling:Detailed,
     DpvRoof:1157058.1                                 , !- Name
@@ -1199,10 +1199,10 @@ RoofCeiling:Detailed,
     WindExposed                                       , !- Wind Exposure
     autocalculate                                     , !- View Factor to Ground
     4                                                 , !- Number of Vertices
-    -25.2950, -7.3981, 4.0000                         , !- X, Y, Z
-    4.2900, -7.3981, 4.0000                           , !- X, Y, Z
-    -6.3076, 2.8873, 10.1185                          , !- X, Y, Z
-    -14.6974, 2.8873, 10.1185                         ; !- X, Y, Z
+    -25.2950, -7.4052, 4.0000                         , !- X, Y, Z
+    4.2900, -7.4052, 4.0000                           , !- X, Y, Z
+    -6.0025, 2.8873, 9.9424                           , !- X, Y, Z
+    -15.0025, 2.8873, 9.9424                          ; !- X, Y, Z
 
 RoofCeiling:Detailed,
     DpvRoof:1157058.2                                 , !- Name
@@ -1214,10 +1214,10 @@ RoofCeiling:Detailed,
     WindExposed                                       , !- Wind Exposure
     autocalculate                                     , !- View Factor to Ground
     4                                                 , !- Number of Vertices
-    -14.6974, 2.8873, 10.1185                         , !- X, Y, Z
-    -6.3076, 2.8873, 10.1185                          , !- X, Y, Z
-    4.2900, 13.1727, 4.0000                           , !- X, Y, Z
-    -25.2950, 13.1727, 4.0000                         ; !- X, Y, Z
+    -15.0025, 2.8873, 9.9424                          , !- X, Y, Z
+    -6.0025, 2.8873, 9.9424                           , !- X, Y, Z
+    4.2900, 13.1798, 4.0000                           , !- X, Y, Z
+    -25.2950, 13.1798, 4.0000                         ; !- X, Y, Z
 
 RoofCeiling:Detailed,
     DpvRoof:1157058.3                                 , !- Name
@@ -1229,9 +1229,184 @@ RoofCeiling:Detailed,
     WindExposed                                       , !- Wind Exposure
     autocalculate                                     , !- View Factor to Ground
     3                                                 , !- Number of Vertices
-    -25.2950, 13.1727, 4.0000                         , !- X, Y, Z
-    -25.2950, -7.3981, 4.0000                         , !- X, Y, Z
-    -14.6974, 2.8873, 10.1185                         ; !- X, Y, Z
+    -25.2950, 13.1798, 4.0000                         , !- X, Y, Z
+    -25.2950, -7.4052, 4.0000                         , !- X, Y, Z
+    -15.0025, 2.8873, 9.9424                          ; !- X, Y, Z
+
+WindowMaterial:SimpleGlazingSystem,
+    DefaultWindowMaterial_0.001                       , !- Name
+    1.3000                                            , !- U-Factor
+    0.9000                                            ; !- Solar Heat Gain Coefficient
+
+Construction,
+    DefaultWindowConstruction                         , !- Name
+    DefaultWindowMaterial_0.001                       ; !- Layers from outside to inside
+
+WindowProperty:FrameAndDivider,
+    DefaultWindowFrameAndDivider                      , !- Name
+    0.0000                                            , !- Frame Width
+    0.0000                                            , !- Frame Outside Projection
+    0.0000                                            , !- Frame Inside Projection
+    3.0000                                            , !- Frame Conductance
+    1.0000                                            , !- Ratio of Frame-Edge Glass Conductance to Center-Of-Glass Conductance
+    0.7000                                            , !- Frame Solar Absorptance
+    0.7000                                            , !- Frame Visible Absorptance
+    0.9000                                            , !- Frame Thermal Hemispherical Emissivity
+    DividedLite                                       , !- Divider Type
+    0.0000                                            , !- Divider Width
+    0.0000                                            , !- Number of Horizontal Dividers
+    0.0000                                            , !- Number of Vertical Dividers
+    0.0000                                            , !- Divider Outside Projection
+    0.0000                                            , !- Divider Inside Projection
+    3.0000                                            , !- Divider Conductance
+                                                      , !- Ratio of Divider-Edge Glass Conductance to Center-Of-Glass Conductance
+                                                      , !- Divider Solar Absorptance
+                                                      , !- Divider Visible Absorptance
+                                                      ; !- Divider Thermal Hemispherical Emissivity
+
+FenestrationSurface:Detailed,
+    DpvWindow:1157096                                 , !- Name
+    Window                                            , !- Surface Type
+    DefaultWindowConstruction                         , !- Construction Name
+    DpvWall:1157026                                   , !- Building Surface Name
+                                                      , !- Outside Boundary Condition Object
+    autocalculate                                     , !- View Factor to Ground
+                                                      , !- Shading Control Name
+    DefaultWindowFrameAndDivider                      , !- Frame and Divider Name
+    1                                                 , !- Multiplier
+    autocalculate                                     , !- Number of Vertices
+    -22.2950, 13.3873, 3.0070                         , !- X, Y, Z
+    -20.6680, 13.3873, 3.0070                         , !- X, Y, Z
+    -20.6680, 13.3873, 0.9470                         , !- X, Y, Z
+    -22.2950, 13.3873, 0.9470                         ; !- X, Y, Z
+
+FenestrationSurface:Detailed,
+    DpvWindow:1157123                                 , !- Name
+    Window                                            , !- Surface Type
+    DefaultWindowConstruction                         , !- Construction Name
+    DpvWall:1157026                                   , !- Building Surface Name
+                                                      , !- Outside Boundary Condition Object
+    autocalculate                                     , !- View Factor to Ground
+                                                      , !- Shading Control Name
+    DefaultWindowFrameAndDivider                      , !- Frame and Divider Name
+    1                                                 , !- Multiplier
+    autocalculate                                     , !- Number of Vertices
+    -17.6680, 13.3873, 3.0070                         , !- X, Y, Z
+    -16.0410, 13.3873, 3.0070                         , !- X, Y, Z
+    -16.0410, 13.3873, 0.9470                         , !- X, Y, Z
+    -17.6680, 13.3873, 0.9470                         ; !- X, Y, Z
+
+FenestrationSurface:Detailed,
+    DpvWindow:1157185                                 , !- Name
+    Window                                            , !- Surface Type
+    DefaultWindowConstruction                         , !- Construction Name
+    DpvWall:1157026                                   , !- Building Surface Name
+                                                      , !- Outside Boundary Condition Object
+    autocalculate                                     , !- View Factor to Ground
+                                                      , !- Shading Control Name
+    DefaultWindowFrameAndDivider                      , !- Frame and Divider Name
+    1                                                 , !- Multiplier
+    autocalculate                                     , !- Number of Vertices
+    -5.3370, 13.3873, 3.0070                          , !- X, Y, Z
+    -3.7100, 13.3873, 3.0070                          , !- X, Y, Z
+    -3.7100, 13.3873, 0.9470                          , !- X, Y, Z
+    -5.3370, 13.3873, 0.9470                          ; !- X, Y, Z
+
+FenestrationSurface:Detailed,
+    DpvWindow:1157217                                 , !- Name
+    Window                                            , !- Surface Type
+    DefaultWindowConstruction                         , !- Construction Name
+    DpvWall:1157029                                   , !- Building Surface Name
+                                                      , !- Outside Boundary Condition Object
+    autocalculate                                     , !- View Factor to Ground
+                                                      , !- Shading Control Name
+    DefaultWindowFrameAndDivider                      , !- Frame and Divider Name
+    1                                                 , !- Multiplier
+    autocalculate                                     , !- Number of Vertices
+    4.4975, 4.5528, 0.9470                            , !- X, Y, Z
+    4.4975, 6.1798, 0.9470                            , !- X, Y, Z
+    4.4975, 6.1798, 3.0070                            , !- X, Y, Z
+    4.4975, 4.5528, 3.0070                            ; !- X, Y, Z
+
+FenestrationSurface:Detailed,
+    DpvWindow:1157271                                 , !- Name
+    Window                                            , !- Surface Type
+    DefaultWindowConstruction                         , !- Construction Name
+    DpvWall:1157029                                   , !- Building Surface Name
+                                                      , !- Outside Boundary Condition Object
+    autocalculate                                     , !- View Factor to Ground
+                                                      , !- Shading Control Name
+    DefaultWindowFrameAndDivider                      , !- Frame and Divider Name
+    1                                                 , !- Multiplier
+    autocalculate                                     , !- Number of Vertices
+    4.4975, -2.2397, 0.9470                           , !- X, Y, Z
+    4.4975, -0.6127, 0.9470                           , !- X, Y, Z
+    4.4975, -0.6127, 3.0070                           , !- X, Y, Z
+    4.4975, -2.2397, 3.0070                           ; !- X, Y, Z
+
+FenestrationSurface:Detailed,
+    DpvWindow:1157297                                 , !- Name
+    Window                                            , !- Surface Type
+    DefaultWindowConstruction                         , !- Construction Name
+    DpvWall:1157028                                   , !- Building Surface Name
+                                                      , !- Outside Boundary Condition Object
+    autocalculate                                     , !- View Factor to Ground
+                                                      , !- Shading Control Name
+    DefaultWindowFrameAndDivider                      , !- Frame and Divider Name
+    1                                                 , !- Multiplier
+    autocalculate                                     , !- Number of Vertices
+    -4.3370, -7.6127, 3.0070                          , !- X, Y, Z
+    -4.3370, -7.6127, 0.9470                          , !- X, Y, Z
+    -2.7100, -7.6127, 0.9470                          , !- X, Y, Z
+    -2.7100, -7.6127, 3.0070                          ; !- X, Y, Z
+
+FenestrationSurface:Detailed,
+    DpvWindow:1157337                                 , !- Name
+    Window                                            , !- Surface Type
+    DefaultWindowConstruction                         , !- Construction Name
+    DpvWall:1157028                                   , !- Building Surface Name
+                                                      , !- Outside Boundary Condition Object
+    autocalculate                                     , !- View Factor to Ground
+                                                      , !- Shading Control Name
+    DefaultWindowFrameAndDivider                      , !- Frame and Divider Name
+    1                                                 , !- Multiplier
+    autocalculate                                     , !- Number of Vertices
+    -17.2950, -7.6127, 0.9470                         , !- X, Y, Z
+    -15.6680, -7.6127, 0.9470                         , !- X, Y, Z
+    -15.6680, -7.6127, 3.0070                         , !- X, Y, Z
+    -17.2950, -7.6127, 3.0070                         ; !- X, Y, Z
+
+FenestrationSurface:Detailed,
+    DpvWindow:1157367                                 , !- Name
+    Window                                            , !- Surface Type
+    DefaultWindowConstruction                         , !- Construction Name
+    DpvWall:1157027                                   , !- Building Surface Name
+                                                      , !- Outside Boundary Condition Object
+    autocalculate                                     , !- View Factor to Ground
+                                                      , !- Shading Control Name
+    DefaultWindowFrameAndDivider                      , !- Frame and Divider Name
+    1                                                 , !- Multiplier
+    autocalculate                                     , !- Number of Vertices
+    -25.5025, 4.5528, 3.0070                          , !- X, Y, Z
+    -25.5025, 6.1798, 3.0070                          , !- X, Y, Z
+    -25.5025, 6.1798, 0.9470                          , !- X, Y, Z
+    -25.5025, 4.5528, 0.9470                          ; !- X, Y, Z
+
+FenestrationSurface:Detailed,
+    DpvWindow:1157411                                 , !- Name
+    Window                                            , !- Surface Type
+    DefaultWindowConstruction                         , !- Construction Name
+    DpvWall:1157027                                   , !- Building Surface Name
+                                                      , !- Outside Boundary Condition Object
+    autocalculate                                     , !- View Factor to Ground
+                                                      , !- Shading Control Name
+    DefaultWindowFrameAndDivider                      , !- Frame and Divider Name
+    1                                                 , !- Multiplier
+    autocalculate                                     , !- Number of Vertices
+    -25.5025, -4.4052, 3.0070                         , !- X, Y, Z
+    -25.5025, -2.7782, 3.0070                         , !- X, Y, Z
+    -25.5025, -2.7782, 0.9470                         , !- X, Y, Z
+    -25.5025, -4.4052, 0.9470                         ; !- X, Y, Z
 
 People,
     IntGainsPeop_DEFAULT_ZONE                         , !- Name
@@ -1535,5 +1710,4 @@ Shading:Building:Detailed,
     -25.7100, -35.2746, 0.0000                        , !- X, Y, Z
     -25.7100, -62.1165, 0.0000                        , !- X, Y, Z
     -6.2434, -62.1165, 0.0000                         ; !- X, Y, Z
-
 

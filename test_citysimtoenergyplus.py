@@ -105,14 +105,17 @@ def test_add_constructions():
 
 
 def test_add_floors():
-    '''note: this code is highly dependent on the RevitModel_nowindows.xml contents!'''
+    '''note: this code is highly dependent on the
+    RevitModel_nowindows.xml contents!'''
     building_xml = get_building_RevitModel_nowindows()
     idf = construct_empty_idf()
     citysimtoenergyplus.add_floors(building_xml, idf,
                                    {'5': 'TEST_CONSTRUCTION'})
     assert len(idf.idfobjects['FLOOR:DETAILED']), 'no floors exported!'
-    assert len(idf.idfobjects['FLOOR:DETAILED']) == 1, 'too many floors exported!'
-    assert idf.getobject('FLOOR:DETAILED', 'Floor19'), 'floor not exported or wrong name'
+    assert len(idf.idfobjects['FLOOR:DETAILED']) == 1, \
+        'too many floors exported!'
+    assert idf.getobject('FLOOR:DETAILED', 'Floor19'), \
+        'floor not exported or wrong name'
     f0 = idf.getobject('FLOOR:DETAILED', 'Floor19')
     assert f0.Name == 'Floor19'
     assert f0.Construction_Name == 'TEST_CONSTRUCTION'
@@ -134,8 +137,10 @@ def test_add_roofs():
     citysimtoenergyplus.add_roofs(building_xml, idf,
                                   {'4': 'TEST_CONSTRUCTION'})
     assert len(idf.idfobjects['ROOFCEILING:DETAILED']), 'no roofs exported!'
-    assert len(idf.idfobjects['ROOFCEILING:DETAILED']) == 4, 'too many roofs exported!'
-    assert idf.getobject('ROOFCEILING:DETAILED', 'Roof15'), 'roof not exported or wrong name'
+    assert len(idf.idfobjects['ROOFCEILING:DETAILED']) == 4, \
+        'too many roofs exported!'
+    assert idf.getobject('ROOFCEILING:DETAILED', 'Roof15'), \
+        'roof not exported or wrong name'
     r0 = idf.getobject('ROOFCEILING:DETAILED', 'Roof15')
     assert r0.Name == 'Roof15'
     assert r0.Construction_Name == 'TEST_CONSTRUCTION'
@@ -145,14 +150,40 @@ def test_add_roofs():
     # FIXME: the below numbers might not be correct?
     round2 = lambda x: round(float(x), 2)
     assert map(round2, r0.obj[-3*3:]) == map(round2,
-                                             [4.29, -7.3981, 4.0,
-                                              4.29, 13.1727, 4.0,
-                                              -6.3076, 2.8873, 10.1185])
+                                             [4.29, -7.41, 4.0,
+                                              4.29, 13.18, 4.0,
+                                              -6.0, 2.89, 9.94])
+
+
+def test_add_walls():
+    building_xml = get_building_RevitModel_nowindows()
+    idf = construct_empty_idf()
+    citysimtoenergyplus.add_walls(building_xml, idf,
+                                  {'3': 'TEST_CONSTRUCTION'})
+    assert len(idf.idfobjects['WALL:DETAILED']), 'no walls exported!'
+    assert len(idf.idfobjects['WALL:DETAILED']) == 4, \
+        'too many walls exported!'
+    assert idf.getobject('WALL:DETAILED', 'Wall11'), \
+        'wall not exported or wrong name'
+    w0 = idf.getobject('WALL:DETAILED', 'Wall11')
+    assert w0.Name == 'Wall11'
+    assert w0.Construction_Name == 'TEST_CONSTRUCTION'
+    assert w0.Zone_Name == 'Zone10'
+    assert w0.Outside_Boundary_Condition == 'Outdoors'
+    assert w0.Number_of_Vertices == 4
+    # FIXME: the below numbers might not be correct?
+    round2 = lambda x: round(float(x), 2)
+    assert map(round2, w0.obj[-4*3:]) == map(round2,
+                                             [-25.5025, 13.3873, 0.0,
+                                              -25.5025, 13.3873, 4.0,
+                                              4.4975, 13.3873, 4.0,
+                                              4.4975, 13.3873, 0.0])
 
 
 def dequals(f1, f2):
     from decimal import Decimal
     return Decimal(f1) == Decimal(f2)
+
 
 def get_building_RevitModel_nowindows():
     citysim = get_RevitModel_nowindows()
@@ -160,6 +191,6 @@ def get_building_RevitModel_nowindows():
 
 
 def get_RevitModel_nowindows():
-    with open(os.path.join('testing', 'RevitModel_nowindows.xml'), 'r') as f:
+    with open(os.path.join('testing', 'RevitModel.xml'), 'r') as f:
         citysim = etree.parse(f)
     return citysim
