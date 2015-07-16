@@ -2,6 +2,8 @@ import citysimtoenergyplus
 from eppy import modeleditor
 from lxml import etree
 import os
+import polygons
+from decimal import Decimal
 
 
 idd_path = os.path.join('testing', 'Energy+.idd')
@@ -107,7 +109,7 @@ def test_add_constructions():
 def test_add_floors():
     '''note: this code is highly dependent on the
     RevitModel_nowindows.xml contents!'''
-    building_xml = get_building_RevitModel_nowindows()
+    building_xml = get_building()
     idf = construct_empty_idf()
     citysimtoenergyplus.add_floors(building_xml, idf,
                                    {'5': 'TEST_CONSTRUCTION'})
@@ -132,7 +134,7 @@ def test_add_floors():
 
 
 def test_add_roofs():
-    building_xml = get_building_RevitModel_nowindows()
+    building_xml = get_building()
     idf = construct_empty_idf()
     citysimtoenergyplus.add_roofs(building_xml, idf,
                                   {'4': 'TEST_CONSTRUCTION'})
@@ -156,7 +158,7 @@ def test_add_roofs():
 
 
 def test_add_walls():
-    building_xml = get_building_RevitModel_nowindows()
+    building_xml = get_building()
     idf = construct_empty_idf()
     citysimtoenergyplus.add_walls(building_xml, idf,
                                   {'3': 'TEST_CONSTRUCTION'})
@@ -180,17 +182,71 @@ def test_add_walls():
                                               4.4975, 13.3873, 0.0])
 
 
+def test_open_questions():
+    assert False, 'implement the zone (instead of template?)'
+    assert False, 'what to do about roofs?'
+    assert False, 'how about testing the template for multiple zones?'
+
+
+def test_add_windows():
+    building_xml = get_building()
+    idf = construct_empty_idf()
+    citysimtoenergyplus.add_windows(building_xml, idf)
+    for wall_xml in building_xml.findall('Zone/Wall'):
+        uvalue = Decimal(wall_xml.get('GlazingUValue'), default=0)
+        gvalue = Decimal(wall_xml.get('GlazingGValue'), default=0)
+        ratio = Decimal(wall_xml.get('GlazingRatio'), default=0)
+        wallid = 'Wall%s' % wall_xml.get('id')
+        windowid = 'Window%s' % wall_xml.get('id')
+        if ratio > 0:
+            construction = idf.getobject('CONSTRUCTION',
+                                         'WindowConstructionU%.2fG%.2f' % (
+                                             uvalue, gvalue))
+            assert construction, 'no construction defined for this window!'
+            assert len(construction.obj) == 3
+            material = idf.getobject('WINDOWMATERIAL:SIMPLEGLAZINGSYSTEM',
+                                     'WindowMaterialU%.2fG%.2f' % (
+                                         uvalue, gvalue))
+            assert material, 'no material defined for this window!'
+            assert construction.obj[-1] == material.Name
+            assert Decimal(material.UFactor) == uvalue
+            assert Decimal(material.Solar_Heat_Gain_Coefficient) == gvalue
+            window = idf.getobject('FENESTRATIONSURFACE:DETAILED', windowid)
+            wall = idf.getobject('WALL:DETAILED', wallid)
+            assert window, 'window was not exported!'
+            assert window.Surface_Type == 'Window'
+            assert window.Construction_Name == construction.Name
+            assert window.Building_Surface_Name == wallid
+            assert window.Frame_and_Divider_Name == ''
+            assert window.Number_of_Vertices == wall.Number_of_Vertices
+            window_vertices = window.obj[window.Number_of_Vertices * -3:]
+            wall_vertices = wall.obj[wall.Number_of_Vertices * -3:]
+            window_polygon = zip(window_vertices[::3],
+                                 window_vertices[1::3],
+                                 window_vertices[2::3])
+            wall_polygon = zip(wall_vertices[::3],
+                               wall_vertices[1::3],
+                               wall_vertices[2::3])
+            assert close_enough(
+                polygons.area(window_polygon),
+                polygons.area(wall_polygon) *
+                ratio)
+
+
+def close_enough(f1, f2):
+    return abs(f1 - f2) < 0.01
+
+
 def dequals(f1, f2):
-    from decimal import Decimal
     return Decimal(f1) == Decimal(f2)
 
 
-def get_building_RevitModel_nowindows():
-    citysim = get_RevitModel_nowindows()
+def get_building():
+    citysim = get_model()
     return citysimtoenergyplus.find_building('6', citysim)
 
 
-def get_RevitModel_nowindows():
+def get_model():
     with open(os.path.join('testing', 'RevitModel.xml'), 'r') as f:
         citysim = etree.parse(f)
     return citysim
