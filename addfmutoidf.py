@@ -9,7 +9,6 @@ then parses that using the parseidf module.
 
 The output is printed to stdout.
 '''
-import parseidf
 import polygons
 import itertools
 
@@ -35,30 +34,16 @@ def id_map(key):
     return id_map.__map[key]
 
 
-def find(idf, *obj):
-    """
-    locate the first object matching *obj and return it (an array).
-    """
-    key = obj[0].upper()
-    if key in idf:
-        for o in idf[key]:
-            if map(upper, obj) == map(upper, o[:len(obj)]):
-                return o
-    return None
-
-
 def delete(idf, *obj):
     """
     delete all objects matching *obj
     """
     key = obj[0].upper()
-    if key in idf:
-        objects = idf[key]
-        new_objects = []
+    if key in idf.idfobjects:
+        objects = idf.idfobjects[key]
         for i in range(len(objects)):
-            if map(upper, obj) != map(upper, objects[i][:len(obj)]):
-                new_objects.append(objects[i])
-        idf[key] = new_objects
+            if map(upper, obj) != map(upper, objects[i].obj[:len(obj)]):
+                del idf.idfobjects[key][i]
 
 
 def contains(idf, *obj):
@@ -66,9 +51,9 @@ def contains(idf, *obj):
     obj may be shorter than the element being searched for.
     return True if such an object was found, otherwise False"""
     key = obj[0].upper()
-    if key in idf:
-        for o in idf[key]:
-            if map(upper, obj) == map(upper, o[:len(obj)]):
+    if key in idf.idfobjects:
+        for o in idf.idfobjects[key]:
+            if map(upper, obj) == map(upper, o.obj[:len(obj)]):
                 # already contained in idf
                 return True
     return False
@@ -76,7 +61,7 @@ def contains(idf, *obj):
 
 def upper(s):
     """handle unicode and str in maps"""
-    return s.upper()
+    return unicode(s).upper()
 
 
 def ensure_contains(idf, *obj):
@@ -87,9 +72,8 @@ def ensure_contains(idf, *obj):
     else:
         # add to idf
         key = obj[0].upper()
-        values = idf.get(key, [])
-        values.append(obj)
-        idf[key] = values
+        newobj = idf.newidfobject(key)
+        newobj.obj = [key] + list(obj[1:])
         return idf
 
 
@@ -113,19 +97,16 @@ def exterior_walls(idf):
     '''return a list of idf objects representing the
     exterior walls, these are WALL:DETAILED objects
     that have an outside boundary condition of "outdoors"
+    update: also handle BUILDINGSURFACE:DETAILED objects
+    that have a type 'wall'
     '''
-    def is_exterior_wall(w):
-        return w[4].strip().lower() == 'outdoors'
-    return [w for w in idf['WALL:DETAILED'] if is_exterior_wall(w)]
-
-
-def windows(idf):
-    '''return a list of window idf objects, these are the
-    FENESTRATIONSURFACE:DETAILED objects.'''
-    try:
-        return idf['FENESTRATIONSURFACE:DETAILED']
-    except KeyError:
-        return []
+    for wall in idf.idfobjects['WALL:DETAILED']:
+        if wall.Outside_Boundary_Condition.strip().lower() == 'outdoors':
+            yield wall
+    for wall in idf.idfobjects['BUILDINGSURFACE:DETAILED']:
+        if wall.Surface_Type.strip().lower() == 'wall':
+            if wall.Outside_Boundary_Condition.strip().lower() == 'outdoors':
+                yield wall
 
 
 def roofs(idf):
@@ -133,28 +114,31 @@ def roofs(idf):
     ROOFCEILING:DETAILED objects that have an outside boundary
     condition of "outdoors"
     '''
-    def is_exterior_roof(r):
-        return r[4].strip().lower() == 'outdoors'
-    return [r for r in idf['ROOFCEILING:DETAILED'] if is_exterior_roof(r)]
+    for roof in idf.idfobjects['ROOFCEILING:DETAILED']:
+        if roof.Outside_Boundary_Condition.strip().lower() == 'outdoors':
+            yield roof
+    for roof in idf.idfobjects['BUILDINGSURFACE:DETAILED']:
+        if roof.Surface_Type.strip().lower() == 'roof':
+            if roof.Outside_Boundary_Condition.strip().lower() == 'outdoors':
+                yield roof
 
 
 def windows_on_wall(idf, wall):
     '''return a list of windows that are hosted on a specific
     wall.'''
-    BUILDING_SURFACE_NAME_IDX = 4
-    return [window for window in windows(idf)
-            if window[BUILDING_SURFACE_NAME_IDX].strip().upper()
+    return [window for window in idf.idfobjects['FENESTRATIONSURFACE:DETAILED']
+            if window.Building_Surface_Name.strip().upper()
             == id(wall).strip().upper()]
 
 
 def zones(idf):
     '''return a list of zone idf objects, these are the
     ZONE objects.'''
-    return idf['ZONE']
+    return idf.idfobjects['ZONE']
 
 
 def id(obj):
-    return obj[1]
+    return obj.Name
 
 
 def sane(id):
@@ -163,19 +147,13 @@ def sane(id):
 
 
 def area(obj):
-    '''returns the area of a wall:detailed or a
-    fenestrationsurface:detailed idf object'''
-    if obj[0].upper() == 'WALL:DETAILED':
-        start_index = 10
-    elif obj[0].upper() == 'FENESTRATIONSURFACE:DETAILED':
-        start_index = 11
-    points = []
-    i = start_index
-    while i + 2 < len(obj):
-        x, y, z = map(float, obj[i:i + 3])
-        points.append((x, y, z))
-        i += 3
-    return polygons.area(points)
+    '''returns the area of a surface'''
+    start_index = obj.objls.index('Number_of_Vertices') + 1
+    vertices = obj.obj[start_index:]
+    polygon = zip(vertices[::3],
+                  vertices[1::3],
+                  vertices[2::3])
+    return polygons.area(polygon)
 
 
 def add_outside_surface_temperature(idf):
@@ -230,7 +208,7 @@ def add_average_outside_surface_temperature(idf):
             id(wall),
             'Surface Outside Face Temperature')
     # ems sensors for windows
-    for window in windows(idf):
+    for window in idf.idfobjects['FENESTRATIONSURFACE:DETAILED']:
         idf = ensure_contains(
             idf,
             'EnergyManagementSystem:Sensor',
@@ -646,21 +624,6 @@ def add_weather_actuators(idf):
     return idf
 
 
-def add_output_variable(idf_as_string, key, variable, frequency):
-    '''
-    add an output variable to an idf by parsing it, adding the
-    object and writing it out to a string again...
-    '''
-    idf = parseidf.parse(idf_as_string)
-    idf = ensure_contains(
-        idf,
-        'Output:Variable',
-        key,
-        variable,
-        frequency)
-    return writeidf(idf)
-
-
 def add_output_variables(idf):
     '''
     Add some default output variables that we want to see in all simulations.
@@ -807,12 +770,12 @@ def add_lwr_fmi(idf):
     return idf
 
 
-def process_idf(idf_as_string):
-    '''parse an idf file (encoded in a string) and
-    return a string with the idf file augmented with
-    the information necessary to produce an FMU.
-    '''
-    idf = parseidf.parse(idf_as_string)
+def process_idf(idf):
+    """
+    parse an idf file (encoded in a string) and return a string
+    with the idf file augmented with the information necessary to produce
+    an FMU.
+    """
     idf = add_fmu_to_idf(idf)
     idf = produce_edd(idf)
     idf = add_outside_surface_temperature(idf)
@@ -823,40 +786,5 @@ def process_idf(idf_as_string):
     idf = add_weather_actuators(idf)
     idf = add_occupation_actuator(idf)
     idf = add_output_variables(idf)
-    return idf
-
-
-def process_idf_lwr(idf_as_string):
-    """
-    parse an idf file (encoded in a string) and return a string
-    with the idf file augmented with the information necessary to produce
-    an FMU.
-    """
-    idf = process_idf(idf_as_string)
     idf = add_lwr_fmi(idf)
     return idf
-
-
-def writeidf(data):
-    """ formats the output format of parseidf.parse() to the IDF format.
-    Example input: { 'A': [['A', '0'], ['A', '1']] }
-    Example output:
-
-    A, 0;
-    A, 1;
-    """
-    lines = []
-    for objecttype in sorted(data.values()):
-        for idfobject in objecttype:
-            line = ',\n\t'.join(idfobject) + ';'
-            lines.append(line)
-    return '\n'.join(lines)
-
-if __name__ == '__main__':
-    import sys
-    if len(sys.argv) < 2:
-        print 'usage: python addfmutoidf.py IDF_FILE'
-        sys.exit(1)
-    infile = sys.argv[1]
-    with open(infile, 'r') as f:
-        print writeidf(process_idf(f.read()))

@@ -4,7 +4,7 @@
 #
 # This module was developed by Daren Thomas at the assistant chair for
 # Architecture and Building Systems (A/S) at the Institute of
-# Technology in Architecture, ETH Zürich. See http://systems.arch.ethz.ch for
+# Technology in Architecture, ETH Zuerich. See http://systems.arch.ethz.ch for
 # more information.
 
 from vistrails.core.modules.vistrails_module import (
@@ -81,6 +81,7 @@ class CitySimXml(XmlElementTree):
 
 
 class Idf(NotCacheable, Module):
+
     '''
     Wraps an eppy IDF3 object for use in the VisTrails system.
 
@@ -96,8 +97,7 @@ class Idf(NotCacheable, Module):
               signature='basic:Path',
               optional=True),
         IPort(name='idd',
-              signature='basic:Path',
-              optional=True),
+              signature='basic:Path'),
     ]
     _output_ports = [OPort(name='idf',
                            signature='ch.ethz.arch.systems.design-performance-workflows:Idf')]  # noqa
@@ -107,7 +107,7 @@ class Idf(NotCacheable, Module):
         from StringIO import StringIO
 
         idf = self.force_get_input('idf', None)
-        idd = force_get_path(self, 'idd', find_idd())
+        idd = self.get_input('idd').name
 
         try:
             IDF.setiddname(idd)
@@ -185,52 +185,26 @@ class GenerateIdf(NotCacheable, Module):
             raise Exception('Could not request IDF from BIM')
 
 
-class AddFmuToIdf(NotCacheable, Module):
-    '''
-    Augment the IDF file with the information necessary for EnergyPlusToFMU
-    and implement the CitySim/EnergyPlus interface.
-    '''
-    _input_ports = [('idf', basic.String)]
-    _output_ports = [('idf', basic.String)]
-
-    def compute(self):
-        import addfmutoidf
-        reload(addfmutoidf)
-        idf = self.getInputFromPort('idf')
-
-        TMP_PATH = tempfile.gettempdir()
-        with open(os.path.join(TMP_PATH, 'addfmutoidf.in.idf'), 'w') as out:
-            out.write(idf)
-        idf = addfmutoidf.writeidf(addfmutoidf.process_idf(idf))
-        with open(os.path.join(TMP_PATH, 'addfmutoidf.out.idf'), 'w') as out:
-            out.write(idf)
-        self.setResult('idf', idf)
-
 
 class AddFmuToIdfLwr(NotCacheable, Module):
-    """
-    Augment the IDF file with the information necessary for EnergyPlusToFMU
+
+    """ Augment the IDF file with the information necessary for EnergyPlusToFMU
     and implement the CitySim/EnergyPlus interface. Includes the interface
     for LWR (replaces AddFmuToIdf)
     """
-    _input_ports = [('idf', basic.String)]
-    _output_ports = [('idf', basic.String)]
+    _input_ports = [IPort(
+        name='idf',
+        signature='ch.ethz.arch.systems.design-performance-workflows:Idf')]
+    _output_ports = [OPort(
+        name='idf',
+        signature='ch.ethz.arch.systems.design-performance-workflows:Idf')]
 
     def compute(self):
         import addfmutoidf
         reload(addfmutoidf)
-        import tempfile
-        idf = self.getInputFromPort('idf')
-
-        TMP_PATH = tempfile.gettempdir()
-        with open(os.path.join(
-                  TMP_PATH, 'addfmutoidflwr.in.idf'), 'w') as out:
-            out.write(idf)
-        idf = addfmutoidf.writeidf(addfmutoidf.process_idf_lwr(idf))
-        with open(os.path.join(
-                  TMP_PATH, 'addfmutoidflwr.out.idf'), 'w') as out:
-            out.write(idf)
-        self.setResult('idf', idf)
+        idf = self.get_input('idf')
+        idf = addfmutoidf.process_idf(idf)
+        self.set_output('idf', idf)
 
 
 class RunEnergyPlus(NotCacheable, Module):
@@ -406,28 +380,27 @@ class StripInternalLoads(NotCacheable, Module):
 
 
 class EnergyPlusToFmu(NotCacheable, Module):
+
     """Run the EnergyPlusToFMU.py script. Use VisTrails
     variables to configure where the script is.
     """
-    _input_ports = [('idf', basic.String),
-                    ('epw_path', basic.String),
+    _input_ports = [('idf', 'ch.ethz.arch.systems.design-performance-workflows:Idf'),
+                    ('epw_path', basic.Path),
                     ('EnergyPlusToFmu_path', basic.Path),
                     ('idd_path', basic.Path)]
     _output_ports = [('fmu_path', basic.String)]
 
     def compute(self):
         try:
-            path = self.forceGetInputFromPort('EnergyPlusToFmu_path')
-            if hasattr(path, 'name'):
-                path = path.name
+            ep2fmu_path = self.get_input('EnergyPlusToFmu_path').name
             idd_path = self.get_input('idd_path').name
-            idf = self.getInputFromPort('idf')
-            epw_path = self.getInputFromPort('epw_path')
+            idf = self.get_input('idf')
+            epw_path = self.get_input('epw_path').name
             idf_fd, idf_path = tempfile.mkstemp(suffix='.idf')
             with os.fdopen(idf_fd, 'w') as idf_file:
-                idf_file.write(idf)
+                idf_file.write(idf.idfstr())
             cwd = tempfile.gettempdir()
-            subprocess.check_call(['python', path,
+            subprocess.check_call(['python', ep2fmu_path,
                                    '-i', idd_path,
                                    '-d', '-L',
                                    '-w', epw_path,
@@ -462,6 +435,7 @@ class RunCoSimulation(NotCacheable, Module):
                      ('eplus_basename', basic.String)]
 
     def compute(self):
+        from lxml import etree
         citysim_xml = self.getInputFromPort('citysim_xml')
         fmu_path = self.getInputFromPort('fmu_path')
         cli_path = self.getInputFromPort('cli_path')
@@ -469,7 +443,7 @@ class RunCoSimulation(NotCacheable, Module):
         tmp = tempfile.mkdtemp(
             prefix=datetime.datetime.now().strftime('%Y.%m.%d.%H.%M.%S')
             + "_RunCoSimulation_")
-        root = ET.fromstring(citysim_xml)
+        root = etree.fromstring(citysim_xml)
         root.find('Climate').set('location', cli_path)
         building = root.find(".//Building[@Simulate='ep']")
         building.set('fmu', fmu_path)
@@ -477,7 +451,7 @@ class RunCoSimulation(NotCacheable, Module):
         citysim_xml_fd, citysim_xml_path = tempfile.mkstemp(
             suffix='.xml', dir=tmp)
         with os.fdopen(citysim_xml_fd, 'w') as citysim_xml_file:
-            ET.ElementTree(root).write(citysim_xml_file)
+            etree.ElementTree(root).write(citysim_xml_file)
         subprocess.check_call([citysim_path,
                                citysim_xml_path],
                               cwd=tmp)
@@ -768,7 +742,6 @@ def force_get_path(module, name, default):
 
 _modules = [
     AcquireModelSnapshot,
-    AddFmuToIdf,
     AddFmuToIdfLwr,
     AddOutputVariable,
     AddOutputVariableList,
