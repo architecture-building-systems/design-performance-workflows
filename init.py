@@ -411,26 +411,22 @@ class EnergyPlusToFmu(NotCacheable, Module):
     """
     _input_ports = [('idf', basic.String),
                     ('epw_path', basic.String),
-                    ('EnergyPlusToFmu_path', basic.Path, {'optional': True})]
+                    ('EnergyPlusToFmu_path', basic.Path),
+                    ('idd_path', basic.Path)]
     _output_ports = [('fmu_path', basic.String)]
 
     def compute(self):
         try:
-            path = self.forceGetInputFromPort(
-                'EnergyPlusToFmu_path', configuration.ENERGYPLUSTOFMU_PATH)
+            path = self.forceGetInputFromPort('EnergyPlusToFmu_path')
             if hasattr(path, 'name'):
                 path = path.name
-            idd_path = configuration.ENERGYPLUS_IDD_PATH
+            idd_path = self.get_input('idd_path').name
             idf = self.getInputFromPort('idf')
             epw_path = self.getInputFromPort('epw_path')
             idf_fd, idf_path = tempfile.mkstemp(suffix='.idf')
-            logger = logging.getLogger('UMEM.EnergyPlusToFmu')
-            logger.info('idf_path=%s', idf_path)
             with os.fdopen(idf_fd, 'w') as idf_file:
                 idf_file.write(idf)
             cwd = tempfile.gettempdir()
-            logger.info('cwd=%s', cwd)
-            logger.info('EnergyPlusToFmu_path=%s', path)
             subprocess.check_call(['python', path,
                                    '-i', idd_path,
                                    '-d', '-L',
@@ -438,9 +434,7 @@ class EnergyPlusToFmu(NotCacheable, Module):
                                    idf_path],
                                   cwd=cwd)
             self.setResult('fmu_path', idf_path[:-4] + '.fmu')
-            logger.info('fmu_path=%s', idf_path[:-4] + '.fmu')
         except:
-            logger.exception('Could not generate FMU')
             raise
 
 
@@ -453,8 +447,6 @@ class RevitToCitySim(NotCacheable, Module):
     def compute(self):
         import urllib2
         url = 'http://localhost:8014/revittocitysim'
-        logger = logging.getLogger('UMEM.RevitToCitySim')
-        logger.info('url=%s', url)
         content = urllib2.urlopen(url).read()
         self.setResult('citysim_xml', content)
 
@@ -463,7 +455,8 @@ class RunCoSimulation(NotCacheable, Module):
     """Run the co-simulation EnergyPlus/CitySim"""
     _input_ports = [('citysim_xml', basic.String),
                     ('fmu_path', basic.String),
-                    ('cli_path', basic.String)]
+                    ('cli_path', basic.String),
+                    ('citysim_path', basic.Path)]
     _output_ports = [('results_path', basic.String),
                      ('citysim_basename', basic.String),
                      ('eplus_basename', basic.String)]
@@ -472,13 +465,10 @@ class RunCoSimulation(NotCacheable, Module):
         citysim_xml = self.getInputFromPort('citysim_xml')
         fmu_path = self.getInputFromPort('fmu_path')
         cli_path = self.getInputFromPort('cli_path')
+        citysim_path = self.get_input('citysim_path').name
         tmp = tempfile.mkdtemp(
             prefix=datetime.datetime.now().strftime('%Y.%m.%d.%H.%M.%S')
             + "_RunCoSimulation_")
-        logger = logging.getLogger('UMEM.RunCoSimulation')
-        logger.info('fmu_path=%s', fmu_path)
-        logger.info('cli_path=%s', cli_path)
-        logger.info('tmp=%s', tmp)
         root = ET.fromstring(citysim_xml)
         root.find('Climate').set('location', cli_path)
         building = root.find(".//Building[@Simulate='ep']")
@@ -488,8 +478,7 @@ class RunCoSimulation(NotCacheable, Module):
             suffix='.xml', dir=tmp)
         with os.fdopen(citysim_xml_fd, 'w') as citysim_xml_file:
             ET.ElementTree(root).write(citysim_xml_file)
-        logger.info('%s %s', configuration.CITYSIMD_PATH, citysim_xml_path)
-        subprocess.check_call([configuration.CITYSIMD_PATH,
+        subprocess.check_call([citysim_path,
                                citysim_xml_path],
                               cwd=tmp)
         self.setResult('results_path', tmp)
@@ -512,10 +501,6 @@ class RunMockCoSimulation(NotCacheable, Module):
         tmp = tempfile.mkdtemp(
             prefix=datetime.datetime.now().strftime('%Y.%m.%d.%H.%M.%S')
             + "_RunMockCoSimulation_")
-        logger = logging.getLogger('UMEM.RunMockCoSimulation')
-        logger.info('fmu_path=%s', fmu_path)
-        logger.info('mock_path=%s', mock_path)
-        logger.info('tmp=%s', tmp)
         subprocess.check_call([mock_path,
                                fmu_path,
                                tmp],
@@ -632,7 +617,6 @@ class AddOutputVariable(NotCacheable, Module):
     def compute(self):
         from eppy.modeleditor import IDF, IDDAlreadySetError
         from StringIO import StringIO
-        logger = logging.getLogger('UMEM.AddOutputVariable')
 
         idf_as_string = self.getInputFromPort('idf')
         key = self.getInputFromPort('key')
@@ -640,10 +624,6 @@ class AddOutputVariable(NotCacheable, Module):
         frequency = self.getInputFromPort('frequency')
         idd_path = self.getInputFromPort('idd_path')
 
-        logger.info('key=%s', key)
-        logger.info('variable=%s', variable)
-        logger.info('frequency=%s', frequency)
-        logger.info('idd_path=%s', idd_path.name)
 
         try:
             IDF.setiddname(idd_path.name)
@@ -680,7 +660,6 @@ class AddOutputVariableList(NotCacheable, Module):
     def compute(self):
         from eppy.modeleditor import IDF, IDDAlreadySetError
         from StringIO import StringIO
-        logger = logging.getLogger('UMEM.AddOutputVariableList')
 
         idf_as_string = self.getInputFromPort('idf')
         key = self.getInputFromPort('key')
@@ -688,10 +667,6 @@ class AddOutputVariableList(NotCacheable, Module):
         frequency = self.getInputFromPort('frequency')
         idd_path = self.getInputFromPort('idd_path')
 
-        logger.info('key=%s', key)
-        logger.info('variables=%s', variables)
-        logger.info('frequency=%s', frequency)
-        logger.info('idd_path=%s', idd_path.name)
 
         try:
             IDF.setiddname(idd_path.name)

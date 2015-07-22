@@ -5,6 +5,8 @@ Extract an EnergyPlus model (IDF) from a CitySim scene.
 A template for the HVAC is provided, so this module is just
 concerned with geometry, materials and construction.
 '''
+from decimal import Decimal
+from . import polygons
 
 
 def extractidf(citysim, building, template):
@@ -21,14 +23,46 @@ def extractidf(citysim, building, template):
     idf = idf_from_template(template)
     constructions = add_constructions(building_xml, idf)
     add_zones(building_xml, idf)
-    add_window_materials(idf)
-    add_window_constructions(idf)
     add_floors(building_xml, idf, constructions)
     add_walls(building_xml, idf, constructions)
     add_roofs(building_xml, idf, constructions)
     add_windows(building_xml, idf)
-    add_shading(citysim, building, idf)
+    add_shading(citysim, building_xml, idf)
     return idf
+
+
+def add_zones(building_xml, idf):
+    '''currently only single-zone models are allowed. the zone name from
+    the idf is used. if any zones are defined in the template,
+    an error is raised.'''
+    zones = building_xml.findall('Zone')
+    assert len(zones) == 1, 'Exactly one zone required'
+    assert len(idf.idfobjects['ZONE']) == 0, \
+        'No zone definitions in template allowed'
+    zone = idf.newidfobject('ZONE')
+    zone_xml = building_xml.find('ZONE')
+    zone.Name = 'Zone%s' % zone_xml.get(id)
+    zone.Direction_of_Relative_North = 0
+    zone.X_Origin = 0
+    zone.Y_Origin = 0
+    zone.Z_Origin = 0
+
+
+def add_shading(citysim, building_xml, idf):
+    shading_buildings = [s for s in citysim.findall('/*/Building')
+                         if not s.get('id') == building_xml.get('id')]
+    for building in shading_buildings:
+        for surface_xml in building.findall('Zone/Wall'):
+            shading = idf.newidfobject('SHADING:BUILDING:DETAILED')
+            shading.Name = 'ShadingB%sW%s' % (building.get('id'),
+                                              surface_xml.get('id'))
+            vertices = [v for v in surface_xml.getchildren()
+                        if v.tag.startswith('V')]
+            shading.Number_of_Vertices = len(vertices)
+            for v in vertices:
+                shading.obj.append(v.get('x'))
+                shading.obj.append(v.get('y'))
+                shading.obj.append(v.get('z'))
 
 
 def add_floors(building_xml, idf, constructions):
@@ -42,7 +76,8 @@ def add_floors(building_xml, idf, constructions):
         floor_idf.Sun_Exposure = 'NoSun'
         floor_idf.Wind_Exposure = 'NoWind'
         floor_idf.View_Factor_to_Ground = 'autocalculate'
-        vertices = [v for v in floor_xml.getchildren() if v.tag.startswith('V')]
+        vertices = [v for v in floor_xml.getchildren()
+                    if v.tag.startswith('V')]
         floor_idf.Number_of_Vertices = len(vertices)
         for v in vertices:
             floor_idf.obj.append(v.get('x'))
@@ -88,20 +123,72 @@ def add_walls(building_xml, idf, constructions):
             wall_idf.obj.append(v.get('z'))
 
 
+def add_windows(building_xml, idf):
+    for wall_xml in building_xml.findall('Zone/Wall'):
+        uvalue = Decimal(wall_xml.get('GlazingUValue'), default=0)
+        gvalue = Decimal(wall_xml.get('GlazingGValue'), default=0)
+        ratio = Decimal(wall_xml.get('GlazingRatio'), default=0)
+        wallid = 'Wall%s' % wall_xml.get('id')
+        windowid = 'Window%s' % wall_xml.get('id')
+        if ratio > 0:
+            construction_name = 'WindowConstructionU%.2fG%.2f' % (
+                uvalue, gvalue)
+            material_name = 'WindowMaterialU%.2fG%.2f' % (uvalue, gvalue)
+            construction = idf.getobject('CONSTRUCTION', construction_name)
+            if not construction:
+                construction = idf.newidfobject('CONSTRUCTION')
+                construction.Name = construction_name
+                construction.obj.append(material_name)
+            material = idf.getobject('WINDOWMATERIAL:SIMPLEGLAZINGSYSTEM',
+                                     material_name)
+            if not material:
+                material = idf.newidfobject(
+                    'WINDOWMATERIAL:SIMPLEGLAZINGSYSTEM')
+                material.Name = material_name
+                material.UFactor = uvalue
+                material.Solar_Heat_Gain_Coefficient = gvalue
+            wall = idf.getobject('WALL:DETAILED', wallid)
+            window = idf.newidfobject('FENESTRATIONSURFACE:DETAILED', windowid)
+            window.Surface_Type = 'Window'
+            window.Construction_Name = construction.Name
+            window.Building_Surface_Name == wallid
+            window.Number_of_Vertices == wall.Number_of_Vertices
+
+            import numpy as np
+            wall_vertices = wall.obj[wall.Number_of_Vertices * -3:]
+            wall_polygon = [np.array(p) for p in zip(
+                wall_vertices[::3],
+                wall_vertices[1::3],
+                wall_vertices[2::3])]
+            window_polygon = polygons.get_vertices_by_area_ratio(
+                wall_polygon, ratio)
+            assert window_polygon, 'Could not calculate window vertices'
+            for vertex in window_polygon:
+                window.obj.extend(vertex)
+
+
 def add_constructions(citysim, building_xml, idf):
     '''
     go through each wall, floor and roof in the building and create
     a CONSTRUCTION object for each WallType referenced.
     '''
-    surfaces = [e for e in building_xml.findall('Zone/*') if e.tag in ('Wall', 'Roof', 'Floor')]
+    surfaces = [e for e in building_xml.findall('Zone/*')
+                if e.tag in ('Wall', 'Roof', 'Floor')]
     constructions = {}
     for surface in surfaces:
         id = surface.get('type')
-        if not id in constructions:
+        if id not in constructions:
             construction_xml = citysim.find('//WallType[@id="%s"]' % id)
-            construction_idf = idf.newidfobject('CONSTRUCTION', construction_xml.get('name', default='WallType%s' % id))
+            construction_idf = idf.newidfobject(
+                'CONSTRUCTION',
+                construction_xml.get(
+                    'name',
+                    default='WallType%s' %
+                    id))
             for mnr, layer in enumerate(construction_xml.findall('Layer')):
-                material_idf = idf.newidfobject('MATERIAL', '%s_M%i' % (construction_idf.Name, mnr))
+                material_idf = idf.newidfobject(
+                    'MATERIAL', '%s_M%i' %
+                    (construction_idf.Name, mnr))
                 material_idf.Thickness = float(layer.get('Thickness'))
                 material_idf.Roughness = 'MediumSmooth'
                 material_idf.Conductivity = float(layer.get('Conductivity'))
@@ -114,7 +201,7 @@ def add_constructions(citysim, building_xml, idf):
 
 def find_building(building, citysim):
     return (find_building_by_name(building, citysim) or
-           find_building_by_id(building, citysim))
+            find_building_by_id(building, citysim))
 
 
 def find_building_by_name(building, citysim):
