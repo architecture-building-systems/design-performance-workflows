@@ -447,6 +447,7 @@ class RunCoSimulation(NotCacheable, Module):
         root = citysim_xml.getroot()
         root.find('Climate').set('location', cli_path)
         building = root.find(".//Building[@Simulate='ep']")
+        assert building, 'CitySimXml does not contain a Building with Simulate="ep"'
         building.set('fmu', fmu_path)
         building.set('tmp', tmp)
         citysim_xml_fd, citysim_xml_path = tempfile.mkstemp(
