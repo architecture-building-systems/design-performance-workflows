@@ -15,6 +15,7 @@ import tempfile
 import subprocess
 import os
 import datetime
+from lxml import etree
 
 
 class XmlElementTree(NotCacheable, Module):
@@ -53,7 +54,6 @@ class ModelSnapshot(XmlElementTree):
                            signature='ch.ethz.arch.systems.design-performance-workflows:ModelSnapshot')]  # noqa
 
     def compute(self):
-        from lxml import etree
         path = self.get_input('file')
         snapshot = etree.parse(open(path, 'r'))
         self.set_output('snapshot', snapshot)
@@ -74,7 +74,6 @@ class CitySimXml(XmlElementTree):
                            signature='ch.ethz.arch.systems.design-performance-workflows:CitySimXml')]  # noqa
 
     def compute(self):
-        from lxml import etree
         path = self.get_input('file').name
         scene = etree.parse(open(path, 'r'))
         self.set_output('citysim_xml', scene)
@@ -142,7 +141,6 @@ class AcquireModelSnapshot(NotCacheable, Module):
 
     def compute(self):
         url = self.get_input('url')
-        from lxml import etree
         snapshot = etree.parse(url)
         self.set_output('snapshot', snapshot)
 
@@ -165,7 +163,6 @@ class GenerateIdf(NotCacheable, Module):
 
     def compute(self):
         import requests
-        from lxml import etree
         from eppy.modeleditor import IDF, IDDAlreadySetError
         from StringIO import StringIO
 
@@ -222,7 +219,6 @@ class RunEnergyPlus(NotCacheable, Module):
     _output_ports = [('results', basic.Path)]
 
     def compute(self):
-        import os
         import shutil
         idf = self.get_input('idf')
         idd_path = force_get_path(self, 'idd', find_idd())
@@ -257,7 +253,6 @@ class SaveEnergyPlusResults(NotCacheable, Module):
 
     def compute(self):
         import shutil
-        import os
         source_path = self.get_input('source_path').name
         target_path = self.get_input('target_path').name
         target_name = self.get_input('target_name')
@@ -384,11 +379,15 @@ class EnergyPlusToFmu(NotCacheable, Module):
     """Run the EnergyPlusToFMU.py script. Use VisTrails
     variables to configure where the script is.
     """
-    _input_ports = [('idf', 'ch.ethz.arch.systems.design-performance-workflows:Idf'),
-                    ('epw_path', basic.Path),
-                    ('EnergyPlusToFmu_path', basic.Path),
-                    ('idd_path', basic.Path)]
-    _output_ports = [('fmu_path', basic.String)]
+    _input_ports = [
+        IPort(
+            name='idf',
+            signature='ch.ethz.arch.systems.design-performance-workflows:Idf'),
+        IPort(name='epw_path', signature='basic:Path'),
+        IPort(name='EnergyPlusToFmu_path', signature='basic:Path'),
+        IPort(name='idd_path', signature='basic:Path')]
+    _output_ports = [
+        OPort(name='fmu_path', signature='basic:Path')]
 
     def compute(self):
         try:
@@ -406,7 +405,7 @@ class EnergyPlusToFmu(NotCacheable, Module):
                                    '-w', epw_path,
                                    idf_path],
                                   cwd=cwd)
-            self.setResult('fmu_path', idf_path[:-4] + '.fmu')
+            self.setResult('fmu_path', basic.PathObject(idf_path[:-4] + '.fmu'))
         except:
             raise
 
@@ -426,24 +425,26 @@ class RevitToCitySim(NotCacheable, Module):
 
 class RunCoSimulation(NotCacheable, Module):
     """Run the co-simulation EnergyPlus/CitySim"""
-    _input_ports = [('citysim_xml', basic.String),
-                    ('fmu_path', basic.String),
-                    ('cli_path', basic.String),
+    _input_ports = [
+        IPort(
+            name='citysim',
+            signature='ch.ethz.arch.systems.design-performance-workflows:CitySimXml'),
+                    ('fmu_path', basic.Path),
+                    ('cli_path', basic.Path),
                     ('citysim_path', basic.Path)]
     _output_ports = [('results_path', basic.String),
                      ('citysim_basename', basic.String),
                      ('eplus_basename', basic.String)]
 
     def compute(self):
-        from lxml import etree
-        citysim_xml = self.getInputFromPort('citysim_xml')
-        fmu_path = self.getInputFromPort('fmu_path')
-        cli_path = self.getInputFromPort('cli_path')
+        citysim_xml = self.get_input('citysim')
+        fmu_path = self.get_input('fmu_path').name
+        cli_path = self.getInputFromPort('cli_path').name
         citysim_path = self.get_input('citysim_path').name
         tmp = tempfile.mkdtemp(
             prefix=datetime.datetime.now().strftime('%Y.%m.%d.%H.%M.%S')
             + "_RunCoSimulation_")
-        root = etree.fromstring(citysim_xml)
+        root = citysim_xml.getroot()
         root.find('Climate').set('location', cli_path)
         building = root.find(".//Building[@Simulate='ep']")
         building.set('fmu', fmu_path)
