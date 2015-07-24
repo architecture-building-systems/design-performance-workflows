@@ -18,6 +18,13 @@ import datetime
 from lxml import etree
 
 
+def signature(class_name):
+    '''return the signature for a port using one of the
+    module classes defined in this file'''
+    from __init__ import identifier
+    return ':'.join((identifier, class_name))
+
+
 class XmlElementTree(NotCacheable, Module):
     '''
     A module to use as output and input ports that contain
@@ -30,10 +37,9 @@ class XmlElementTree(NotCacheable, Module):
                           signature='basic:File',
                           label='An XML file to read')]
     _output_ports = [OPort(name='xml',
-                           signature='ch.ethz.arch.systems.design-performance-workflows:XmlElementTree')]  # noqa
+                           signature=signature('XmlElementTree'))]  # noqa
 
     def compute(self):
-        from lxml import etree
         path = self.get_input('file')
         xml = etree.parse(open(path, 'r'))
         self.set_output('xml', xml)
@@ -51,7 +57,7 @@ class ModelSnapshot(XmlElementTree):
                           signature='basic:File',
                           label='An XML file to read')]
     _output_ports = [OPort(name='snapshot',
-                           signature='ch.ethz.arch.systems.design-performance-workflows:ModelSnapshot')]  # noqa
+                           signature=signature('ModelSnapshot'))]  # noqa
 
     def compute(self):
         path = self.get_input('file')
@@ -71,7 +77,7 @@ class CitySimXml(XmlElementTree):
                           signature='basic:File',
                           label='A CitySim XML file to read')]
     _output_ports = [OPort(name='citysim_xml',
-                           signature='ch.ethz.arch.systems.design-performance-workflows:CitySimXml')]  # noqa
+                           signature=signature('CitySimXml'))]  # noqa
 
     def compute(self):
         path = self.get_input('file').name
@@ -99,7 +105,7 @@ class Idf(NotCacheable, Module):
               signature='basic:Path'),
     ]
     _output_ports = [OPort(name='idf',
-                           signature='ch.ethz.arch.systems.design-performance-workflows:Idf')]  # noqa
+                           signature=signature('Idf'))]  # noqa
 
     def compute(self):
         from eppy.modeleditor import IDF, IDDAlreadySetError
@@ -137,7 +143,7 @@ class AcquireModelSnapshot(NotCacheable, Module):
                           optional=True)]
 
     _output_ports = [OPort(name='snapshot',
-                           signature='ch.ethz.arch.systems.design-performance-workflows:ModelSnapshot')]  # noqa
+                           signature=signature('ModelSnapshot'))]  # noqa
 
     def compute(self):
         url = self.get_input('url')
@@ -150,7 +156,7 @@ class GenerateIdf(NotCacheable, Module):
     Send a ModelSnapshot to the BIM/DPV to be converted to an IDF file.
     '''
     _input_ports = [IPort(name='snapshot',
-                          signature='ch.ethz.arch.systems.design-performance-workflows:ModelSnapshot'),  # noqa
+                          signature=signature('ModelSnapshot')),  # noqa
                     IPort(name='url',
                           signature='basic:String',
                           default='http://localhost:8014/idf',
@@ -159,7 +165,7 @@ class GenerateIdf(NotCacheable, Module):
                         signature='basic:Path',
                         optional=True)]
     _output_ports = [OPort(name='idf',
-                           signature='ch.ethz.arch.systems.design-performance-workflows:Idf')]  # noqa
+                           signature=signature('Idf'))]  # noqa
 
     def compute(self):
         import requests
@@ -182,7 +188,6 @@ class GenerateIdf(NotCacheable, Module):
             raise Exception('Could not request IDF from BIM')
 
 
-
 class AddFmuToIdfLwr(NotCacheable, Module):
 
     """ Augment the IDF file with the information necessary for EnergyPlusToFMU
@@ -191,10 +196,10 @@ class AddFmuToIdfLwr(NotCacheable, Module):
     """
     _input_ports = [IPort(
         name='idf',
-        signature='ch.ethz.arch.systems.design-performance-workflows:Idf')]
+        signature=signature('Idf'))]
     _output_ports = [OPort(
         name='idf',
-        signature='ch.ethz.arch.systems.design-performance-workflows:Idf')]
+        signature=signature('Idf'))]
 
     def compute(self):
         import addfmutoidf
@@ -382,7 +387,7 @@ class EnergyPlusToFmu(NotCacheable, Module):
     _input_ports = [
         IPort(
             name='idf',
-            signature='ch.ethz.arch.systems.design-performance-workflows:Idf'),
+            signature=signature('Idf')),
         IPort(name='epw_path', signature='basic:Path'),
         IPort(name='EnergyPlusToFmu_path', signature='basic:Path'),
         IPort(name='idd_path', signature='basic:Path')]
@@ -405,7 +410,8 @@ class EnergyPlusToFmu(NotCacheable, Module):
                                    '-w', epw_path,
                                    idf_path],
                                   cwd=cwd)
-            self.setResult('fmu_path', basic.PathObject(idf_path[:-4] + '.fmu'))
+            self.setResult('fmu_path',
+                           basic.PathObject(idf_path[:-4] + '.fmu'))
         except:
             raise
 
@@ -428,13 +434,26 @@ class RunCoSimulation(NotCacheable, Module):
     _input_ports = [
         IPort(
             name='citysim',
-            signature='ch.ethz.arch.systems.design-performance-workflows:CitySimXml'),
-                    ('fmu_path', basic.Path),
-                    ('cli_path', basic.Path),
-                    ('citysim_path', basic.Path)]
-    _output_ports = [('results_path', basic.String),
-                     ('citysim_basename', basic.String),
-                     ('eplus_basename', basic.String)]
+            signature=signature('CitySimXml')),
+        IPort(
+            name='fmu_path',
+            signature='basic:Path'),
+        IPort(
+            name='cli_path',
+            signature='basic:Path'),
+        IPort(
+            name='citysim_path',
+            signature='basic:Path')]
+    _output_ports = [
+        OPort(
+            name='results_path',
+            signature='basic:String'),
+        OPort(
+            name='citysim_basename',
+            signature='basic:String'),
+        OPort(
+            name='eplus_basename',
+            signature='basic:String')]
 
     def compute(self):
         citysim_xml = self.get_input('citysim')
@@ -447,7 +466,7 @@ class RunCoSimulation(NotCacheable, Module):
         root = citysim_xml.getroot()
         root.find('Climate').set('location', cli_path)
         building = root.find(".//Building[@Simulate='ep']")
-        assert building, 'CitySimXml does not contain a Building with Simulate="ep"'
+        assert building, 'CitySimXml does not contain Simulate="ep"'
         building.set('fmu', fmu_path)
         building.set('tmp', tmp)
         citysim_xml_fd, citysim_xml_path = tempfile.mkstemp(
@@ -487,10 +506,9 @@ class RunMockCoSimulation(NotCacheable, Module):
 class RunCitySim(NotCacheable, Module):
     """Run just the CitySim simulation (no co-simulation)"""
     _input_ports = [IPort(name='citysim_xml',
-                          signature='ch.ethz.arch.systems.design-performance-workflows:CitySimXml'),
+                          signature=signature('CitySimXml')),
                     IPort(name='cli_path',
-                          signature='basic:File',
-                          label='Path to the .cli (weather) file to use for simulation.'),
+                          signature='basic:File'),
                     IPort(name='citysim_exe',
                           signature='basic:File',
                           label='CitySim.exe')]
@@ -520,7 +538,7 @@ class RunCitySim(NotCacheable, Module):
                               cwd=tmp)
         self.set_output('results_path', basic.PathObject(tmp))
         self.set_output('citysim_basename',
-                       os.path.basename(citysim_xml_path)[:-4])
+                        os.path.basename(citysim_xml_path)[:-4])
 
 
 class XPath(NotCacheable, Module):
@@ -600,7 +618,6 @@ class AddOutputVariable(NotCacheable, Module):
         frequency = self.getInputFromPort('frequency')
         idd_path = self.getInputFromPort('idd_path')
 
-
         try:
             IDF.setiddname(idd_path.name)
         except IDDAlreadySetError:
@@ -642,7 +659,6 @@ class AddOutputVariableList(NotCacheable, Module):
         variables = self.getInputFromPort('variables')
         frequency = self.getInputFromPort('frequency')
         idd_path = self.getInputFromPort('idd_path')
-
 
         try:
             IDF.setiddname(idd_path.name)
@@ -687,13 +703,13 @@ class CitySimToEnergyPlus(NotCacheable, Module):
     constructions and surfaces to the template.
     '''
     _input_ports = [IPort(name='citysim',
-                          signature='ch.ethz.arch.systems.design-performance-workflows:CitySimXml'),
+                          signature=signature('CitySimXml')),
                     IPort(name='building',
                           signature='basic:String'),
                     IPort(name='template',
-                          signature='ch.ethz.arch.systems.design-performance-workflows:Idf')]
+                          signature=signature('Idf'))]
     _output_ports = [OPort(name='idf',
-                           signature='ch.ethz.arch.systems.design-performance-workflows:Idf')]
+                           signature=signature('Idf'))]
 
     def compute(self):
         import citysimtoenergyplus
@@ -701,7 +717,8 @@ class CitySimToEnergyPlus(NotCacheable, Module):
         citysim = self.get_input('citysim')
         building = self.get_input('building')
         template = self.get_input('template')
-        idf = extractidf(citysim=citysim, building=building, template=template)
+        idf = citysimtoenergyplus.extractidf(
+            citysim=citysim, building=building, template=template)
         self.set_output('idf', idf)
 
 
@@ -715,10 +732,12 @@ def find_idd():
         folder = os.path.dirname(energyplus)
         idd = os.path.join(folder, 'Energy+.idd')
         if not os.path.isfile(idd):
-            raise Exception('Could not find default Energy+.idd in %s' % folder)
+            raise Exception(
+                'Could not find default Energy+.idd in %s' % folder)
         return idd
     except:
         raise Exception('Could not find default Energy+.idd')
+
 
 def find_energyplus():
     '''
