@@ -74,8 +74,7 @@ class CitySimXml(XmlElementTree):
     xml.etree.ElementTree objects.
     '''
     _input_ports = [IPort(name='file',
-                          signature='basic:File',
-                          label='A CitySim XML file to read')]
+                          signature='basic:File')]
     _output_ports = [OPort(name='citysim_xml',
                            signature=signature('CitySimXml'))]  # noqa
 
@@ -217,11 +216,12 @@ class RunEnergyPlus(NotCacheable, Module):
     The idf is expected to be a string containing the contents of the file.
     The epw_path is expected to be the path to a *.epw weather file.
     """
-    _input_ports = [('idf', Idf),
-                    ('epw', basic.File),
-                    ('idd', basic.File, {'optional': True}),
-                    ('energyplus', basic.File, {'optional': True})]
-    _output_ports = [('results', basic.Path)]
+    _input_ports = [
+        IPort(name='idf', signature=signature('Idf')),
+        IPort(name='epw', signature='basic:File'),
+        IPort(name='idd', signature='basic:File', optional=True),
+        IPort(name='energyplus', signature='basic:File', optional=True)]
+    _output_ports = [OPort(name='results', signature='basic:Path')]
 
     def compute(self):
         import shutil
@@ -766,6 +766,7 @@ _modules = [
     AddFmuToIdfLwr,
     AddOutputVariable,
     AddOutputVariableList,
+    CitySimToEnergyPlus,
     CitySimXml,
     EnergyPlusToFmu,
     FileToList,

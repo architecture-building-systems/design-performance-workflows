@@ -5,8 +5,8 @@ Extract an EnergyPlus model (IDF) from a CitySim scene.
 A template for the HVAC is provided, so this module is just
 concerned with geometry, materials and construction.
 '''
-from decimal import Decimal
 from . import polygons
+reload(polygons)
 
 
 def extractidf(citysim, building, template):
@@ -21,7 +21,7 @@ def extractidf(citysim, building, template):
     '''
     building_xml = find_building(building, citysim)
     idf = idf_from_template(template)
-    constructions = add_constructions(building_xml, idf)
+    constructions = add_constructions(citysim, building_xml, idf)
     add_zones(building_xml, idf)
     add_floors(building_xml, idf, constructions)
     add_walls(building_xml, idf, constructions)
@@ -40,8 +40,8 @@ def add_zones(building_xml, idf):
     assert len(idf.idfobjects['ZONE']) == 0, \
         'No zone definitions in template allowed'
     zone = idf.newidfobject('ZONE')
-    zone_xml = building_xml.find('ZONE')
-    zone.Name = 'Zone%s' % zone_xml.get(id)
+    zone_xml = building_xml.find('Zone')
+    zone.Name = 'Zone%s' % zone_xml.get('id')
     zone.Direction_of_Relative_North = 0
     zone.X_Origin = 0
     zone.Y_Origin = 0
@@ -125,9 +125,9 @@ def add_walls(building_xml, idf, constructions):
 
 def add_windows(building_xml, idf):
     for wall_xml in building_xml.findall('Zone/Wall'):
-        uvalue = Decimal(wall_xml.get('GlazingUValue'), default=0)
-        gvalue = Decimal(wall_xml.get('GlazingGValue'), default=0)
-        ratio = Decimal(wall_xml.get('GlazingRatio'), default=0)
+        uvalue = float(wall_xml.get('GlazingUValue', default=0))
+        gvalue = float(wall_xml.get('GlazingGValue', default=0))
+        ratio = float(wall_xml.get('GlazingRatio', default=0))
         wallid = 'Wall%s' % wall_xml.get('id')
         windowid = 'Window%s' % wall_xml.get('id')
         if ratio > 0:
@@ -155,7 +155,8 @@ def add_windows(building_xml, idf):
             window.Number_of_Vertices == wall.Number_of_Vertices
 
             import numpy as np
-            wall_vertices = wall.obj[wall.Number_of_Vertices * -3:]
+            wall_vertices = [float(w)
+                             for w in wall.obj[wall.Number_of_Vertices * -3:]]
             wall_polygon = [np.array(p) for p in zip(
                 wall_vertices[::3],
                 wall_vertices[1::3],
