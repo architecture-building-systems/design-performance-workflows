@@ -722,6 +722,48 @@ class CitySimToEnergyPlus(NotCacheable, Module):
         self.set_output('idf', idf)
 
 
+class AddIdealLoadsAirSystem(NotCacheable, Module):
+    '''
+    add the IdealLoadsAirSystem to the zones in the building. This
+    is already expanded, similar to what ExpandObjects.exe does.
+
+    this adds an HVAC system to the output of the CitySimToEnergyPlus
+    module.
+
+    it requires a VENTILATIONSCHEDULE to be defined as a fraction
+    of the air_changes_per_hour to use.
+    '''
+    _input_ports = [IPort(name='idf',
+                          signature=signature('Idf')),
+                    IPort(name='air_changes_per_hour',
+                          signature='basic:Float',
+                          optional=True,
+                          default=0.7),
+                    IPort(name='cooling_system',
+                          signature='basic:Boolean',
+                          optional=True,
+                          default=True),
+                    IPort(name='sensible_heat_recovery_effectiveness',
+                          signature='basic:Float',
+                          optional=True,
+                          default=0.2)]
+    _output_ports = [OPort(name='idf',
+                           signature=signature('Idf'))]
+
+    def compute(self):
+        import addidealloads
+        reload(addidealloads)
+        idf = self.get_input('idf')
+        idf = addidealloads.add_ideal_loads_air_system(
+            idf,
+            air_changes_per_hour=self.get_input('air_changes_per_hour'),
+            cooling_system=self.get_input('cooling_system'),
+            sensible_heat_recovery_effectiveness=self.get_input(
+                'sensible_heat_recovery_effectiveness'))
+        self.setResult('idf', idf)
+        pass
+
+
 def find_idd():
     '''
     find the default IDD file.
@@ -764,6 +806,7 @@ def force_get_path(module, name, default):
 _modules = [
     AcquireModelSnapshot,
     AddFmuToIdfLwr,
+    AddIdealLoadsAirSystem,
     AddOutputVariable,
     AddOutputVariableList,
     CitySimToEnergyPlus,

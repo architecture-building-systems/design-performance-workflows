@@ -151,8 +151,8 @@ def add_windows(building_xml, idf):
             window = idf.newidfobject('FENESTRATIONSURFACE:DETAILED', windowid)
             window.Surface_Type = 'Window'
             window.Construction_Name = construction.Name
-            window.Building_Surface_Name == wallid
-            window.Number_of_Vertices == wall.Number_of_Vertices
+            window.Building_Surface_Name = wallid
+            window.Number_of_Vertices = wall.Number_of_Vertices
 
             import numpy as np
             wall_vertices = [float(w)
