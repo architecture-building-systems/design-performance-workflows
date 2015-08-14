@@ -913,6 +913,7 @@ _modules = [
     SaveEnergyPlusResults,
     SaveCitySimResults,
     SaveCoSimResults,
+    WriteElementTree,
     XmlElementTree,
     XPath,
     XPathSetAttribute,

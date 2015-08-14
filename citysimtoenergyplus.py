@@ -157,18 +157,22 @@ def add_windows(building_xml, idf):
                 material.UFactor = uvalue
                 material.Solar_Heat_Gain_Coefficient = gvalue
             wall = idf.getobject('WALL:DETAILED', wallid)
-            window = idf.newidfobject('FENESTRATIONSURFACE:DETAILED', windowid)
-            window.Surface_Type = 'Window'
-            window.Construction_Name = construction.Name
-            window.Building_Surface_Name = wallid
-            window.Number_of_Vertices = wall.Number_of_Vertices
-
             wall_vertices = [float(w)
                              for w in wall.obj[wall.Number_of_Vertices * -3:]]
             wall_polygon = [np.array(p) for p in zip(
                 wall_vertices[::3],
                 wall_vertices[1::3],
                 wall_vertices[2::3])]
+            if len(wall_polygon) > 4:
+                raise Exception(
+                    "Can't add windows to wall (too many vertices): %s"
+                    % wall.Name)
+            window = idf.newidfobject('FENESTRATIONSURFACE:DETAILED', windowid)
+            window.Surface_Type = 'Window'
+            window.Construction_Name = construction.Name
+            window.Building_Surface_Name = wallid
+            window.Number_of_Vertices = wall.Number_of_Vertices
+
             window_polygon = polygons.get_vertices_by_area_ratio(
                 wall_polygon, ratio)
             assert window_polygon, 'Could not calculate window vertices'
