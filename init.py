@@ -287,7 +287,6 @@ class SaveCoSimResults(NotCacheable, Module):
 
     def compute(self):
         import shutil
-        import os
         source_path = self.getInputFromPort('source_path')
         citysim_basename = self.getInputFromPort('citysim_basename')
         eplus_basename = self.getInputFromPort('eplus_basename')
@@ -327,7 +326,6 @@ class SaveCitySimResults(NotCacheable, Module):
 
     def compute(self):
         import shutil
-        import os
         source_path = self.getInputFromPort('source_path').name
         citysim_basename = self.getInputFromPort('citysim_basename')
         target_path = self.getInputFromPort('target_path').name
@@ -722,6 +720,52 @@ class CitySimToEnergyPlus(NotCacheable, Module):
         self.set_output('idf', idf)
 
 
+class MapEnergyPlusGeometryToCitySim(NotCacheable, Module):
+    '''
+    Go through each wall, roof, floor and shading surface in the
+    energyplus geometry and map the vertices of the idf file
+    back to the citysim file.
+
+    Expects naming conventions to be those of CitySimToEnergyPlus:
+        - Wall<CitySimID>
+        - Roof<CitySimID>
+        - Floor<CitySimID>
+        - ShadingB<CitySimBuildingID>W<CitySimID>
+
+    as a side effect, the epid tag is entered to all surfaces matched,
+    this is a prerequisite for co-simulation.
+    '''
+    _input_ports = [IPort(name='citysim',
+                          signature=signature('CitySimXml')),
+                    IPort(name='idf',
+                          signature=signature('Idf'))]
+    _output_ports = [OPort(name='citysim',
+                           signature=signature('CitySimXml'))]
+
+    def compute(self):
+        import mapepgeom
+        reload(mapepgeom)
+        citysim = self.get_input('citysim')
+        idf = self.get_input('idf')
+        result = mapepgeom.map_ep_geom(citysim=citysim, idf=idf)
+        self.set_output('citysim', result)
+
+
+class WriteElementTree(NotCacheable, Module):
+    '''
+    Take an ElementTree and write it out to disc.
+    '''
+    _input_ports = [IPort(name='file',
+                          signature='basic:File'),
+                    IPort(name='xml',
+                          signature=signature('XmlElementTree'))]
+
+    def compute(self):
+        fpath = self.get_input('file').name
+        tree = self.get_input('xml')
+        tree.write(fpath)
+
+
 class AddIdealLoadsAirSystem(NotCacheable, Module):
     '''
     add the IdealLoadsAirSystem to the zones in the building. This
@@ -760,15 +804,56 @@ class AddIdealLoadsAirSystem(NotCacheable, Module):
             cooling_system=self.get_input('cooling_system'),
             sensible_heat_recovery_effectiveness=self.get_input(
                 'sensible_heat_recovery_effectiveness'))
-        self.setResult('idf', idf)
+        self.set_output('idf', idf)
         pass
+
+
+class RelativeFile(Module):
+    '''
+    resolve a string denoting a path relative to the current
+    vistrails document to a Path object for input into other modules.
+    '''
+    _input_ports = [IPort(name='relative_file',
+                          signature='basic:String')]
+    _output_ports = [OPort(name='absolute_file',
+                           signature='basic:File')]
+
+    def compute(self):
+        from vistrails.core import application
+        app = application.get_vistrails_application()
+        wf_path = app.get_vistrail().locator.name
+        wf_folder = os.path.dirname(wf_path)
+        relative_path = self.get_input('relative_file')
+        absolute_path = os.path.normpath(
+            os.path.join(wf_folder, relative_path))
+        self.set_output('absolute_file', basic.PathObject(absolute_path))
+
+
+class RelativePath(Module):
+    '''
+    resolve a string denoting a path relative to the current
+    vistrails document to a Path object for input into other modules.
+    '''
+    _input_ports = [IPort(name='relative_path',
+                          signature='basic:String')]
+    _output_ports = [OPort(name='absolute_path',
+                           signature='basic:Path')]
+
+    def compute(self):
+        from vistrails.core import application
+        app = application.get_vistrails_application()
+        wf_path = app.get_vistrail().locator.name
+        wf_folder = os.path.dirname(wf_path)
+        relative_path = self.get_input('relative_path')
+        absolute_path = os.path.normpath(
+            os.path.join(wf_folder, relative_path))
+        self.set_output('absolute_path', basic.PathObject(absolute_path))
 
 
 def find_idd():
     '''
     find the default IDD file.
     '''
-    import os
     try:
         energyplus = find_energyplus()
         folder = os.path.dirname(energyplus)
@@ -815,7 +900,10 @@ _modules = [
     FileToList,
     GenerateIdf,
     Idf,
+    MapEnergyPlusGeometryToCitySim,
     ModelSnapshot,
+    RelativeFile,
+    RelativePath,
     RevitToCitySim,
     RunCitySim,
     RunEnergyPlus,

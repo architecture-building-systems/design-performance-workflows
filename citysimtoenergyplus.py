@@ -5,6 +5,7 @@ Extract an EnergyPlus model (IDF) from a CitySim scene.
 A template for the HVAC is provided, so this module is just
 concerned with geometry, materials and construction.
 '''
+import numpy as np
 from . import polygons
 reload(polygons)
 
@@ -53,11 +54,19 @@ def add_shading(citysim, building_xml, idf):
                          if not s.get('id') == building_xml.get('id')]
     for building in shading_buildings:
         for surface_xml in building.findall('Zone/Wall'):
+            vertices = [v for v in surface_xml.getchildren()
+                        if v.tag.startswith('V')]
+            npvertices = [np.array((float(v.get('x')),
+                                    float(v.get('y')),
+                                    float(v.get('z'))))
+                          for v in vertices]
+            if np.isnan(polygons.np_poly_area(npvertices)):
+                print 'not exporting', surface_xml.get('id')
+                continue  # don't export bad shading...
+
             shading = idf.newidfobject('SHADING:BUILDING:DETAILED')
             shading.Name = 'ShadingB%sW%s' % (building.get('id'),
                                               surface_xml.get('id'))
-            vertices = [v for v in surface_xml.getchildren()
-                        if v.tag.startswith('V')]
             shading.Number_of_Vertices = len(vertices)
             for v in vertices:
                 shading.obj.append(v.get('x'))
@@ -154,7 +163,6 @@ def add_windows(building_xml, idf):
             window.Building_Surface_Name = wallid
             window.Number_of_Vertices = wall.Number_of_Vertices
 
-            import numpy as np
             wall_vertices = [float(w)
                              for w in wall.obj[wall.Number_of_Vertices * -3:]]
             wall_polygon = [np.array(p) for p in zip(
@@ -166,6 +174,7 @@ def add_windows(building_xml, idf):
             assert window_polygon, 'Could not calculate window vertices'
             for vertex in window_polygon:
                 window.obj.extend(vertex)
+            print 'add_windows', len(window_polygon), len(wall_polygon)
 
 
 def add_constructions(citysim, building_xml, idf):
@@ -180,6 +189,8 @@ def add_constructions(citysim, building_xml, idf):
         id = surface.get('type')
         if id not in constructions:
             construction_xml = citysim.find('//WallType[@id="%s"]' % id)
+            if construction_xml is None:
+                raise Exception('could not find //WallType[@id="%s"]' % id)
             construction_idf = idf.newidfobject(
                 'CONSTRUCTION',
                 construction_xml.get(
@@ -201,8 +212,11 @@ def add_constructions(citysim, building_xml, idf):
 
 
 def find_building(building, citysim):
-    return (find_building_by_name(building, citysim) or
-            find_building_by_id(building, citysim))
+    building = find_building_by_name(building, citysim)
+    if building is not None:
+        return building
+    else:
+        return find_building_by_id(building, citysim)
 
 
 def find_building_by_name(building, citysim):
