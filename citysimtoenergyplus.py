@@ -216,9 +216,9 @@ def add_constructions(citysim, building_xml, idf):
 
 
 def find_building(building, citysim):
-    building = find_building_by_name(building, citysim)
-    if building is not None:
-        return building
+    building_xml = find_building_by_name(building, citysim)
+    if building_xml is not None:
+        return building_xml
     else:
         return find_building_by_id(building, citysim)
 
