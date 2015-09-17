@@ -167,17 +167,33 @@ def add_windows(building_xml, idf):
                 raise Exception(
                     "Can't add windows to wall (too many vertices): %s"
                     % wall.Name)
-            window = idf.newidfobject('FENESTRATIONSURFACE:DETAILED', windowid)
-            window.Surface_Type = 'Window'
-            window.Construction_Name = construction.Name
-            window.Building_Surface_Name = wallid
-            window.Number_of_Vertices = wall.Number_of_Vertices
-
             window_polygon = polygons.get_vertices_by_area_ratio(
                 wall_polygon, ratio)
             assert window_polygon, 'Could not calculate window vertices'
-            for vertex in window_polygon:
-                window.obj.extend(vertex)
+            for i,vertex in enumerate(window_polygon):
+				print 'i: ', i, '\tvertex: ', vertex
+			
+            window = idf.newidfobject('FENESTRATIONSURFACE:DETAILED', windowid + "_1")
+            window.Surface_Type = 'Window'
+            window.Construction_Name = construction.Name
+            window.Building_Surface_Name = wallid
+            window.Number_of_Vertices = 3
+			
+            for i,vertex in enumerate(window_polygon):
+				if i < 3:
+					window.obj.extend(vertex)
+
+            window = idf.newidfobject('FENESTRATIONSURFACE:DETAILED', windowid + "_2")
+            window.Surface_Type = 'Window'
+            window.Construction_Name = construction.Name
+            window.Building_Surface_Name = wallid
+            window.Number_of_Vertices = 3		
+            for i,vertex in enumerate(window_polygon):			
+				if i == 0:
+					window.obj.extend(vertex)
+				if i > 1:
+					window.obj.extend(vertex)					
+				
             print 'add_windows', len(window_polygon), len(wall_polygon)
 
 
