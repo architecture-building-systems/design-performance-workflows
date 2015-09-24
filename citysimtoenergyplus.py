@@ -72,6 +72,28 @@ def add_shading(citysim, building_xml, idf):
                 shading.obj.append(v.get('x'))
                 shading.obj.append(v.get('y'))
                 shading.obj.append(v.get('z'))
+	# JK - adds the Roofs as shading for all buildings including the co-simulated one
+    shading_buildings = [s for s in citysim.findall('/*/Building')]
+    for building in shading_buildings:
+        for surface_xml in building.findall('Zone/Roof'):
+            vertices = [v for v in surface_xml.getchildren()
+                        if v.tag.startswith('V')]
+            npvertices = [np.array((float(v.get('x')),
+                                    float(v.get('y')),
+                                    float(v.get('z'))))
+                          for v in vertices]
+            if np.isnan(polygons.np_poly_area(npvertices)):
+                print 'not exporting', surface_xml.get('id')
+                continue  # don't export bad shading...
+
+            shading = idf.newidfobject('SHADING:BUILDING:DETAILED')
+            shading.Name = 'ShadingB%sR%s' % (building.get('id'),
+                                              surface_xml.get('id'))
+            shading.Number_of_Vertices = len(vertices)
+            for v in vertices:
+                shading.obj.append(v.get('x'))
+                shading.obj.append(v.get('y'))
+                shading.obj.append(v.get('z'))
 
 
 def add_floors(building_xml, idf, constructions):
@@ -167,17 +189,33 @@ def add_windows(building_xml, idf):
                 raise Exception(
                     "Can't add windows to wall (too many vertices): %s"
                     % wall.Name)
-            window = idf.newidfobject('FENESTRATIONSURFACE:DETAILED', windowid)
-            window.Surface_Type = 'Window'
-            window.Construction_Name = construction.Name
-            window.Building_Surface_Name = wallid
-            window.Number_of_Vertices = wall.Number_of_Vertices
-
             window_polygon = polygons.get_vertices_by_area_ratio(
                 wall_polygon, ratio)
             assert window_polygon, 'Could not calculate window vertices'
-            for vertex in window_polygon:
-                window.obj.extend(vertex)
+            for i,vertex in enumerate(window_polygon):
+				print 'i: ', i, '\tvertex: ', vertex
+			
+            window = idf.newidfobject('FENESTRATIONSURFACE:DETAILED', windowid + "_1")
+            window.Surface_Type = 'Window'
+            window.Construction_Name = construction.Name
+            window.Building_Surface_Name = wallid
+            window.Number_of_Vertices = 3
+			
+            for i,vertex in enumerate(window_polygon):
+				if i < 3:
+					window.obj.extend(vertex)
+
+            window = idf.newidfobject('FENESTRATIONSURFACE:DETAILED', windowid + "_2")
+            window.Surface_Type = 'Window'
+            window.Construction_Name = construction.Name
+            window.Building_Surface_Name = wallid
+            window.Number_of_Vertices = 3		
+            for i,vertex in enumerate(window_polygon):			
+				if i == 0:
+					window.obj.extend(vertex)
+				if i > 1:
+					window.obj.extend(vertex)					
+				
             print 'add_windows', len(window_polygon), len(wall_polygon)
 
 
