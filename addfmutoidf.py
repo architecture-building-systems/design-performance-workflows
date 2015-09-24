@@ -12,6 +12,8 @@ The output is printed to stdout.
 import polygons
 import itertools
 
+reload(polygons)
+
 
 # some helper functions for creating ids and idfs
 def next_id():
@@ -150,10 +152,14 @@ def area(obj):
     '''returns the area of a surface'''
     start_index = obj.objls.index('Number_of_Vertices') + 1
     vertices = obj.obj[start_index:]
-    polygon = zip(vertices[::3],
-                  vertices[1::3],
-                  vertices[2::3])
-    return polygons.area(polygon)
+    polygon = zip(map(float, vertices[::3]),
+                  map(float, vertices[1::3]),
+                  map(float, vertices[2::3]))
+    try:
+        return polygons.area(polygon)
+    except:
+        print 'addfmutoidf.area - ERROR:', polygon
+        raise
 
 
 def add_outside_surface_temperature(idf):

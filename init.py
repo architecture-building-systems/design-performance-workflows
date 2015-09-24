@@ -84,6 +84,18 @@ class CitySimXml(XmlElementTree):
         self.set_output('citysim_xml', scene)
 
 
+class CastToCitySimXml(NotCacheable, Module):
+    """Cast an XmlElemntTree back to CitySimXml"""
+    _input_ports = [IPort(name='xml',
+                          signature=signature('XmlElementTree'))]
+    _output_ports = [OPort(name='citysim',
+                           signature=signature('CitySimXml'))]
+
+    def compute(self):
+        citysim = self.get_input('xml')
+        self.set_output('citysim', citysim)
+
+
 class Idf(NotCacheable, Module):
 
     '''
@@ -279,18 +291,18 @@ class SaveCoSimResults(NotCacheable, Module):
     use the output from RunCoSimulation
     (citysim_basename, results_path, eplus_basename)
     """
-    _input_ports = [('source_path', basic.String),
-                    ('citysim_basename', basic.String),
-                    ('eplus_basename', basic.String),
-                    ('target_path', basic.String),
-                    ('target_basename', basic.String)]
+    _input_ports = [IPort(name='source_path', signature='basic:Path'),
+                    IPort(name='citysim_basename', signature='basic:String'),
+                    IPort(name='eplus_basename', signature='basic:String'),
+                    IPort(name='target_path', signature='basic:Path'),
+                    IPort(name='target_basename', signature='basic:String')]
 
     def compute(self):
         import shutil
-        source_path = self.getInputFromPort('source_path')
+        source_path = self.getInputFromPort('source_path').name
         citysim_basename = self.getInputFromPort('citysim_basename')
         eplus_basename = self.getInputFromPort('eplus_basename')
-        target_path = self.getInputFromPort('target_path')
+        target_path = self.getInputFromPort('target_path').name
         target_basename = self.getInputFromPort('target_basename')
         shutil.copyfile(os.path.join(source_path, eplus_basename + '.eso'),
                         os.path.join(target_path, target_basename + '.eso'))
@@ -316,11 +328,11 @@ class SaveCitySimResults(NotCacheable, Module):
     (citysim_basename, results_path)
     """
     _input_ports = [IPort(name='source_path',
-                          signature='basic:Directory'),
+                          signature='basic:Path'),
                     IPort(name='citysim_basename',
                           signature='basic:String'),
                     IPort(name='target_path',
-                          signature='basic:Directory'),
+                          signature='basic:Path'),
                     IPort(name='target_basename',
                           signature='basic:String')]
 
@@ -374,7 +386,7 @@ class StripInternalLoads(NotCacheable, Module):
         idf = stripinternalloads.process_idf(idf)
         with open(os.path.join(TMP_PATH, 'strip.out.idf'), 'w') as out:
             out.write(idf)
-        self.setResult('idf', idf)
+        self.set_output('idf', idf)
 
 
 class EnergyPlusToFmu(NotCacheable, Module):
@@ -408,8 +420,8 @@ class EnergyPlusToFmu(NotCacheable, Module):
                                    '-w', epw_path,
                                    idf_path],
                                   cwd=cwd)
-            self.setResult('fmu_path',
-                           basic.PathObject(idf_path[:-4] + '.fmu'))
+            self.set_output('fmu_path',
+                            basic.PathObject(idf_path[:-4] + '.fmu'))
         except:
             raise
 
@@ -424,7 +436,7 @@ class RevitToCitySim(NotCacheable, Module):
         import urllib2
         url = 'http://localhost:8014/revittocitysim'
         content = urllib2.urlopen(url).read()
-        self.setResult('citysim_xml', content)
+        self.set_output('citysim_xml', content)
 
 
 class RunCoSimulation(NotCacheable, Module):
@@ -445,7 +457,7 @@ class RunCoSimulation(NotCacheable, Module):
     _output_ports = [
         OPort(
             name='results_path',
-            signature='basic:String'),
+            signature='basic:Path'),
         OPort(
             name='citysim_basename',
             signature='basic:String'),
@@ -464,7 +476,7 @@ class RunCoSimulation(NotCacheable, Module):
         root = citysim_xml.getroot()
         root.find('Climate').set('location', cli_path)
         building = root.find(".//Building[@Simulate='ep']")
-        assert building, 'CitySimXml does not contain Simulate="ep"'
+        assert len(building), 'CitySimXml does not contain Simulate="ep"'
         building.set('fmu', fmu_path)
         building.set('tmp', tmp)
         citysim_xml_fd, citysim_xml_path = tempfile.mkstemp(
@@ -474,12 +486,12 @@ class RunCoSimulation(NotCacheable, Module):
         subprocess.check_call([citysim_path,
                                citysim_xml_path],
                               cwd=tmp)
-        self.setResult('results_path', tmp)
-        self.setResult('citysim_basename',
-                       os.path.basename(citysim_xml_path)[:-4])
-        self.setResult('eplus_basename',
-                       os.path.join('Output_EPExport_RevitToCitySim',
-                                    os.path.basename(fmu_path)[:-4]))
+        self.set_output('results_path', tmp)
+        self.set_output('citysim_basename',
+                        os.path.basename(citysim_xml_path)[:-4])
+        self.set_output('eplus_basename',
+                        os.path.join('Output_EPExport_RevitToCitySim',
+                                     os.path.basename(fmu_path)[:-4]))
 
 
 class RunMockCoSimulation(NotCacheable, Module):
@@ -498,7 +510,7 @@ class RunMockCoSimulation(NotCacheable, Module):
                                fmu_path,
                                tmp],
                               cwd=tmp)
-        self.setResult('results_path', tmp)
+        self.set_output('results_path', tmp)
 
 
 class RunCitySim(NotCacheable, Module):
@@ -511,7 +523,7 @@ class RunCitySim(NotCacheable, Module):
                           signature='basic:File',
                           label='CitySim.exe')]
     _output_ports = [OPort(name='results_path',
-                           signature='basic:Directory'),
+                           signature='basic:Path'),
                      OPort(name='citysim_basename',
                            signature='basic:String')]
 
@@ -563,7 +575,7 @@ class XPath(NotCacheable, Module):
                 return etree.tostring(e)
             return e
         matches = [s(e) for e in matches]
-        self.setResult('matches', matches)
+        self.set_output('matches', matches)
 
 
 class XPathSetAttribute(NotCacheable, Module):
@@ -573,22 +585,20 @@ class XPathSetAttribute(NotCacheable, Module):
     converted back to strings.
     '''
     _input_ports = [
-        ('xml', basic.String),
-        ('xpath', basic.String),
-        ('attrib', basic.String),
-        ('new_value', basic.String)]
-    _output_ports = [('xml', basic.String)]
+        IPort(name='xml', signature=signature('XmlElementTree')),
+        IPort(name='xpath', signature='basic:String'),
+        IPort(name='attrib', signature='basic:String'),
+        IPort(name='new_value', signature='basic:String')]
+    _output_ports = [OPort(name='xml', signature=signature('XmlElementTree'))]
 
     def compute(self):
-        from xml.etree import ElementTree as etree
-        xml = self.getInputFromPort('xml')
-        xpath = self.getInputFromPort('xpath')
-        attrib = self.getInputFromPort('attrib')
-        new_value = self.getInputFromPort('new_value')
-        tree = etree.fromstring(xml)
+        tree = self.get_input('xml')
+        xpath = self.get_input('xpath')
+        attrib = self.get_input('attrib')
+        new_value = self.get_input('new_value')
         for element in tree.findall(xpath):
             element.set(attrib, new_value)
-        self.setResult('xml', etree.tostring(tree))
+        self.set_output('xml', tree)
 
 
 class AddOutputVariable(NotCacheable, Module):
@@ -629,7 +639,7 @@ class AddOutputVariable(NotCacheable, Module):
         output_variable.Reporting_Frequency = frequency
 
         # output the result
-        self.setResult('idf', idf.idfstr())
+        self.set_output('idf', idf.idfstr())
 
 
 class AddOutputVariableList(NotCacheable, Module):
@@ -640,30 +650,25 @@ class AddOutputVariableList(NotCacheable, Module):
     contents of the IDF file (as opposed to paths)
     '''
     _input_ports = [
-        ('idf', basic.String),
-        ('idd_path', basic.Path),
-        ('key', basic.String),
-        ('variables', basic.List),
-        ('frequency', basic.String)]
+        IPort(name='idf',
+              signature=signature('Idf')),
+        IPort(name='key',
+              signature='basic:String',
+              default='*'),
+        IPort(name='variables',
+              signature='basic:List'),
+        IPort(name='frequency',
+              signature='basic:String',
+              default='timestep')]
 
-    _output_ports = [('idf', basic.String)]
+    _output_ports = [OPort(name='idf',
+                           signature=signature('Idf'))]
 
     def compute(self):
-        from eppy.modeleditor import IDF, IDDAlreadySetError
-        from StringIO import StringIO
-
-        idf_as_string = self.getInputFromPort('idf')
-        key = self.getInputFromPort('key')
-        variables = self.getInputFromPort('variables')
-        frequency = self.getInputFromPort('frequency')
-        idd_path = self.getInputFromPort('idd_path')
-
-        try:
-            IDF.setiddname(idd_path.name)
-        except IDDAlreadySetError:
-            pass
-
-        idf = IDF(StringIO(idf_as_string))
+        idf = self.get_input('idf')
+        key = self.get_input('key')
+        variables = list(self.get_input('variables'))
+        frequency = self.get_input('frequency')
 
         for variable in variables:
             output_variable = idf.newidfobject('OUTPUT:VARIABLE')
@@ -672,7 +677,7 @@ class AddOutputVariableList(NotCacheable, Module):
             output_variable.Reporting_Frequency = frequency
 
         # output the result
-        self.setResult('idf', idf.idfstr())
+        self.set_output('idf', idf)
 
 
 class FileToList(NotCacheable, Module):
@@ -686,10 +691,10 @@ class FileToList(NotCacheable, Module):
     _output_ports = [('list', basic.List)]
 
     def compute(self):
-        file_path = self.getInputFromPort('file').name
+        file_path = self.get_input('file').name
         with open(file_path, 'r') as f:
             result = [line.strip() for line in f]
-        self.setResult('list', result)
+        self.set_output('list', result)
 
 
 class CitySimToEnergyPlus(NotCacheable, Module):
@@ -850,6 +855,21 @@ class RelativePath(Module):
         self.set_output('absolute_path', basic.PathObject(absolute_path))
 
 
+class SimplifyShading(Module):
+    '''Simplify shading surfaces in the EnergyPlus model
+    by joining rectangular adjacent, coplanar surfaces'''
+    _input_ports = [IPort(name='idf',
+                          signature=signature('Idf'))]
+    _output_ports = [OPort(name='idf',
+                           signature=signature('Idf'))]
+
+    def compute(self):
+        import shading
+        idf = self.get_input('idf')
+        idf = shading.simplify(idf)
+        self.set_output('idf', idf)
+
+
 def find_idd():
     '''
     find the default IDD file.
@@ -894,6 +914,7 @@ _modules = [
     AddIdealLoadsAirSystem,
     AddOutputVariable,
     AddOutputVariableList,
+    CastToCitySimXml,
     CitySimToEnergyPlus,
     CitySimXml,
     EnergyPlusToFmu,
