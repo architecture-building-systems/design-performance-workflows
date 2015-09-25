@@ -865,6 +865,7 @@ class SimplifyShading(Module):
 
     def compute(self):
         import shading
+        reload(shading)
         idf = self.get_input('idf')
         idf = shading.simplify(idf)
         self.set_output('idf', idf)
@@ -934,6 +935,7 @@ _modules = [
     SaveEnergyPlusResults,
     SaveCitySimResults,
     SaveCoSimResults,
+    SimplifyShading,
     WriteElementTree,
     XmlElementTree,
     XPath,
