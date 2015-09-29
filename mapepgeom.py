@@ -11,9 +11,8 @@ Expects naming conventions to be those of CitySimToEnergyPlus:
     - Floor<CitySimID>
     - ShadingB<CitySimBuildingID>W<CitySimID>
 
-as a side effect, the epid tag is entered to all surfaces matched,
+as a side effect, the ep_id tag is entered to all surfaces matched,
 this is a prerequisite for co-simulation.
-
 
 NOTES:
     - assumes each surface has a unique id in the CitySim model!
@@ -28,7 +27,7 @@ def map_ep_geom(citysim, idf):
         obj = find_surface(surface_xml, idf)
         if obj:
             update_vertices(surface_xml, obj)
-            surface_xml.set('epid', obj.Name)
+            surface_xml.set('ep_id', obj.Name)
     return citysim
 
 
@@ -49,9 +48,14 @@ def find_surface(surface, idf):
     due to the naming convention, look through Roofs, Walls,
     Floors - the same as the surface tag! and also the  ShadingSurfaces...
     '''
-    obj = idf.getobject('BUILDINGSURFACE:DETAILED',
-                        surface.tag + surface.get('id'))
-    if not obj:
+    ep_id = surface.tag + surface.get('id')
+    obj = (idf.getobject('BUILDINGSURFACE:DETAILED', ep_id)
+           or idf.getobject('WALL:DETAILED', ep_id)
+           or idf.getobject('ROOFCEILING:DETAILED', ep_id)
+           or idf.getobject('FLOOR:DETAILED', ep_id))
+    if obj:
+        return obj
+    else:
         # could be a shading surface
         shading_id = 'ShadingB%sW%s' % (
             surface.getparent().getparent().get('id'),
