@@ -221,62 +221,6 @@ def add_average_outside_surface_temperature(idf):
             'f%i' % id_map(id(window)),
             id(window),
             'Surface Outside Face Temperature')
-    # a global variable (awtX) per wall
-    for wall in exterior_walls(idf):
-        idf = ensure_contains(
-            idf,
-            'EnergyManagementSystem:GlobalVariable',
-            'awt%i' % id_map(id(wall)))
-        idf = ensure_contains(
-            idf,
-            'EnergyManagementSystem:OutputVariable',
-            'Average Wall Outside Temperature ' + id(wall),
-            'awt%i' % id_map(id(wall)),
-            'Averaged',
-            'ZoneTimestep',
-            '',
-            'C')
-        idf = ensure_contains(
-            idf,
-            'Output:Variable',
-            '*',
-            'Average Wall outside Temperature ' + id(wall),
-            'timestep')
-    # fmu output variables for the global variables
-    for wall in exterior_walls(idf):
-        idf = ensure_contains(
-            idf,
-            'ExternalInterface:FunctionalMockupUnitExport:From:Variable',
-            'EMS',
-            'Average Wall Outside Temperature ' + id(wall),
-            '%s::Average Outside Surface Temperature' % id(wall))
-    # program calling manager, program, update routines for the awtX variables
-    idf = ensure_contains(
-        idf,
-        'EnergyManagementSystem:ProgramCallingManager',
-        'update_awt_every_timestep',
-        'BeginTimestepBeforePredictor',
-        'update_awt_variables')
-    idf = ensure_contains(
-        idf,
-        'EnergyManagementSystem:Program',
-        'update_awt_variables',
-        *['RUN update_awt_w%i' % id_map(id(wall))
-          for wall in exterior_walls(idf)])
-    for wall in exterior_walls(idf):
-        wid = id_map(id(wall))
-        warea = area(wall)
-        tarea = warea + sum(area(window)
-                            for window in windows_on_wall(idf, wall))
-        idf = ensure_contains(
-            idf,
-            'EnergyManagementSystem:Subroutine',
-            'update_awt_w%(wid)i' % locals(),
-            'SET awt%(wid)i = %(warea).6f * w%(wid)i / %(tarea).6f' % locals(),
-            *['SET awt%i = awt%i + (%.6f * f%i / %.6f)'
-              % (wid, wid, area(window),
-                 id_map(id(window)), tarea)
-              for window in windows_on_wall(idf, wall)])
     return idf
 
 
