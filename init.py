@@ -414,12 +414,13 @@ class EnergyPlusToFmu(NotCacheable, Module):
             with os.fdopen(idf_fd, 'w') as idf_file:
                 idf_file.write(idf.idfstr())
             cwd = tempfile.gettempdir()
-            subprocess.check_call(['python', ep2fmu_path,
-                                   '-i', idd_path,
-                                   '-d', '-L',
-                                   '-w', epw_path,
-                                   idf_path],
-                                  cwd=cwd)
+            call_args = ['python', ep2fmu_path,
+                         '-i', idd_path,
+                         '-d', '-L',
+                         '-w', epw_path,
+                         idf_path]
+            print call_args
+            subprocess.check_call(call_args, cwd=cwd)
             self.set_output('fmu_path',
                             basic.PathObject(idf_path[:-4] + '.fmu'))
         except:
@@ -486,7 +487,7 @@ class RunCoSimulation(NotCacheable, Module):
         subprocess.check_call([citysim_path,
                                citysim_xml_path],
                               cwd=tmp)
-        self.set_output('results_path', tmp)
+        self.set_output('results_path', basic.PathObject(tmp))
         self.set_output('citysim_basename',
                         os.path.basename(citysim_xml_path)[:-4])
         self.set_output('eplus_basename',
@@ -871,6 +872,25 @@ class SimplifyShading(Module):
         self.set_output('idf', idf)
 
 
+class SimplifyCitySimGeometry(Module):
+    '''
+    Simplify CitySimXml geometry by joining rectangular adjacent,
+    coplanar surfaces that have the same construction and belong to
+    the same Zone in the same Building.
+    '''
+    _input_ports = [IPort(name='citysim_xml',
+                          signature=signature('CitySimXml'))]
+    _output_ports = [OPort(name='citysim_xml',
+                           signature=signature('CitySimXml'))]
+
+    def compute(self):
+        import simplifycitysimgeometry
+        reload(simplifycitysimgeometry)
+        citysim_xml = self.get_input('citysim_xml')
+        citysim_xml = simplifycitysimgeometry.simplify(citysim_xml)
+        self.set_output('citysim_xml', citysim_xml)
+
+
 def find_idd():
     '''
     find the default IDD file.
@@ -935,6 +955,7 @@ _modules = [
     SaveEnergyPlusResults,
     SaveCitySimResults,
     SaveCoSimResults,
+    SimplifyCitySimGeometry,
     SimplifyShading,
     WriteElementTree,
     XmlElementTree,
