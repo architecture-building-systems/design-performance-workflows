@@ -304,6 +304,8 @@ class SaveCoSimResults(NotCacheable, Module):
         eplus_basename = self.getInputFromPort('eplus_basename')
         target_path = self.getInputFromPort('target_path').name
         target_basename = self.getInputFromPort('target_basename')
+        if not os.path.exists(target_path):
+            os.makedirs(target_path)
         shutil.copyfile(os.path.join(source_path, eplus_basename + '.eso'),
                         os.path.join(target_path, target_basename + '.eso'))
         shutil.copyfile(os.path.join(source_path, eplus_basename + '.err'),
@@ -772,6 +774,25 @@ class WriteElementTree(NotCacheable, Module):
         tree.write(fpath)
 
 
+class WriteIdf(NotCacheable, Module):
+    '''
+    Take an IDF object and write it out to disc.
+    '''
+    _input_ports = [IPort(name='idf',
+                          signature=signature('Idf')),
+                    IPort(name='file',
+                          signature='basic:File')]
+    _output_ports = [OPort(name='idf', signature=signature('Idf'))]
+
+    def compute(self):
+        idf = self.get_input('idf')
+        fpath = self.get_input('file').name
+        with open(fpath, 'w') as out:
+            out.write(idf.idfstr())
+        self.set_output('idf', idf)
+
+
+
 class AddIdealLoadsAirSystem(NotCacheable, Module):
     '''
     add the IdealLoadsAirSystem to the zones in the building. This
@@ -958,6 +979,7 @@ _modules = [
     SimplifyCitySimGeometry,
     SimplifyShading,
     WriteElementTree,
+    WriteIdf,
     XmlElementTree,
     XPath,
     XPathSetAttribute,
