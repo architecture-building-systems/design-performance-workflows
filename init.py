@@ -892,7 +892,34 @@ class RemoveIdfObject(NotCacheable, Module):
         self.set_output('idf', idf)
 
 
-class RelativeFile(Module):
+class RemoveIdfObjectList(NotCacheable, Module):
+    '''
+    Delete a list of IdfObjects from an IDF file.
+    The list is given as the path to a CSV file with
+    two columns, the first is the IDF key name
+    (e.g. 'SHADING:BUILDING:DETAILED'), the second is
+    the Name fields of the object to delete.
+    '''
+    _input_ports = [IPort(name='idf', signature=signature('Idf')),
+                    IPort(name='csv_path', signature='basic:File')]
+    _output_ports = [OPort(name='idf', signature=signature('Idf'))]
+
+    def compute(self):
+        import csv
+
+        idf = self.get_input('idf')
+        csv_path = self.get_input('csv_path').name
+
+        with open(csv_path, 'r') as f:
+            csv_reader = csv.reader(f)
+            for key, name in csv_reader:
+                obj = idf.getobject(key, name)
+                if obj:
+                    idf.removeidfobject(obj)
+        self.set_output('idf', idf)
+
+
+class RelativeFile(NotCacheable, Module):
     '''
     resolve a string denoting a path relative to the current
     vistrails document to a Path object for input into other modules.
@@ -915,7 +942,7 @@ class RelativeFile(Module):
         self.set_output('absolute_file', basic.PathObject(absolute_path))
 
 
-class RelativePath(Module):
+class RelativePath(NotCacheable, Module):
     '''
     resolve a string denoting a path relative to the current
     vistrails document to a Path object for input into other modules.
@@ -937,7 +964,7 @@ class RelativePath(Module):
         self.set_output('absolute_path', basic.PathObject(absolute_path))
 
 
-class SimplifyShading(Module):
+class SimplifyShading(NotCacheable, Module):
     '''Simplify shading surfaces in the EnergyPlus model
     by joining rectangular adjacent, coplanar surfaces'''
     _input_ports = [IPort(name='idf',
@@ -953,7 +980,7 @@ class SimplifyShading(Module):
         self.set_output('idf', idf)
 
 
-class SimplifyCitySimGeometry(Module):
+class SimplifyCitySimGeometry(NotCacheable, Module):
     '''
     Simplify CitySimXml geometry by joining rectangular adjacent,
     coplanar surfaces that have the same construction and belong to
@@ -1047,6 +1074,7 @@ _modules = [
     RelativeFile,
     RelativePath,
     RemoveIdfObject,
+    RemoveIdfObjectList,
     RevitToCitySim,
     RunCitySim,
     RunEnergyPlus,
