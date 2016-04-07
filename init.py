@@ -232,7 +232,8 @@ class RunEnergyPlus(NotCacheable, Module):
         IPort(name='idf', signature=signature('Idf')),
         IPort(name='epw', signature='basic:File'),
         IPort(name='idd', signature='basic:File', optional=True),
-        IPort(name='energyplus', signature='basic:File', optional=True)]
+        IPort(name='energyplus', signature='basic:File', optional=True),
+        IPort(name='copy_list', signature='basic:String', optional=True)]
     _output_ports = [OPort(name='results', signature='basic:Path')]
 
     def compute(self):
@@ -249,6 +250,18 @@ class RunEnergyPlus(NotCacheable, Module):
             out.write(idf.idfstr())
         shutil.copy(idd_path, tmp)
         shutil.copyfile(epw_path, os.path.join(tmp, 'in.epw'))
+        copy_list = self.force_get_input('copy_list', None)
+        if copy_list:
+            relnames = copy_list.split(';')
+            from vistrails.core import application
+            app = application.get_vistrails_application()
+            wf_path = app.get_vistrail().locator.name
+            wf_folder = os.path.dirname(wf_path)
+            for relname in relnames:
+                absolute_path = os.path.normpath(
+                    os.path.join(wf_folder, relname))
+                shutil.copy(absolute_path, tmp)
+
         subprocess.check_call([energyplus_path],
                               cwd=tmp)
         self.set_output('results', basic.PathObject(tmp))
@@ -290,20 +303,24 @@ class SaveCoSimResults(NotCacheable, Module):
 
     use the output from RunCoSimulation
     (citysim_basename, results_path, eplus_basename)
+
+    if the target_basename is not set, the basename of the workflow is used...
     """
     _input_ports = [IPort(name='source_path', signature='basic:Path'),
                     IPort(name='citysim_basename', signature='basic:String'),
                     IPort(name='eplus_basename', signature='basic:String'),
                     IPort(name='target_path', signature='basic:Path'),
-                    IPort(name='target_basename', signature='basic:String')]
+                    IPort(name='target_basename', signature='basic:String', optional=True)]
 
     def compute(self):
         import shutil
-        source_path = self.getInputFromPort('source_path').name
-        citysim_basename = self.getInputFromPort('citysim_basename')
-        eplus_basename = self.getInputFromPort('eplus_basename')
-        target_path = self.getInputFromPort('target_path').name
-        target_basename = self.getInputFromPort('target_basename')
+        source_path = self.get_input('source_path').name
+        citysim_basename = self.get_input('citysim_basename')
+        eplus_basename = self.get_input('eplus_basename')
+        target_path = self.get_input('target_path').name
+        target_basename = self.force_get_input('target_basename', None)
+        if not target_basename:
+            target_basename = replace_vars('$basename')
         if not os.path.exists(target_path):
             os.makedirs(target_path)
         shutil.copyfile(os.path.join(source_path, eplus_basename + '.eso'),
@@ -792,7 +809,6 @@ class WriteIdf(NotCacheable, Module):
         self.set_output('idf', idf)
 
 
-
 class AddIdealLoadsAirSystem(NotCacheable, Module):
     '''
     add the IdealLoadsAirSystem to the zones in the building. This
@@ -835,10 +851,52 @@ class AddIdealLoadsAirSystem(NotCacheable, Module):
         pass
 
 
+class MergeIdf(NotCacheable, Module):
+    '''
+    Merges two idf files, left and right.
+    Objects in right overwrite objects of same type / name
+    in left.
+    Left is modyfied by this. And left is returned.
+    '''
+    _input_ports = [IPort(name='left', signature=signature('Idf')),
+                    IPort(name='right', signature=signature('Idf'))]
+    _output_ports = [OPort(name='idf', signature=signature('Idf'))]
+
+    def compute(self):
+        left = self.get_input('left')
+        right = self.get_input('right')
+        for obj_type in right.idfobjects.keys():
+            for obj in right.idfobjects[obj_type]:
+                if left.getobject(obj_type, obj.Name):
+                    left.removeidfobject(left.getobject(obj_type, obj.Name))
+                left.copyidfobject(obj)
+        self.set_output('idf', left)
+
+
+class RemoveIdfObject(NotCacheable, Module):
+    '''
+    Delete an IdfObject from an IDF file.
+    '''
+    _input_ports = [IPort(name='idf', signature=signature('Idf')),
+                    IPort(name='type_name', signature='basic:String'),
+                    IPort(name='name', signature='basic:String')]
+    _output_ports = [OPort(name='idf', signature=signature('Idf'))]
+
+    def compute(self):
+        idf = self.get_input('idf')
+        type_name = self.get_input('type_name')
+        name = self.get_input('name')
+        obj = idf.getobject(type_name, name)
+        if obj:
+            idf.removeidfobject(obj)
+        self.set_output('idf', idf)
+
+
 class RelativeFile(Module):
     '''
     resolve a string denoting a path relative to the current
     vistrails document to a Path object for input into other modules.
+    hint: $dirname and $basename are expanded to the vistrails workflow.
     '''
     _input_ports = [IPort(name='relative_file',
                           signature='basic:String')]
@@ -851,6 +909,7 @@ class RelativeFile(Module):
         wf_path = app.get_vistrail().locator.name
         wf_folder = os.path.dirname(wf_path)
         relative_path = self.get_input('relative_file')
+        relative_path = replace_vars(relative_path)
         absolute_path = os.path.normpath(
             os.path.join(wf_folder, relative_path))
         self.set_output('absolute_file', basic.PathObject(absolute_path))
@@ -872,6 +931,7 @@ class RelativePath(Module):
         wf_path = app.get_vistrail().locator.name
         wf_folder = os.path.dirname(wf_path)
         relative_path = self.get_input('relative_path')
+        relative_path = replace_vars(relative_path)
         absolute_path = os.path.normpath(
             os.path.join(wf_folder, relative_path))
         self.set_output('absolute_path', basic.PathObject(absolute_path))
@@ -950,6 +1010,24 @@ def force_get_path(module, name, default):
     else:
         return default
 
+def replace_vars(s):
+    """replaces variables in the string. Using the string.Template.
+    Variables known:
+        - $basename: the basename of the name of the workflow (without the
+        '.vt')
+        - $dirname: the folder the workflow resides in
+    """
+    from vistrails.core import application
+    from string import Template
+    app = application.get_vistrails_application()
+    wf_path = app.get_vistrail().locator.name
+    dirname = os.path.dirname(wf_path)
+    basename = os.path.basename(wf_path)
+    basename = os.path.splitext(basename)[0]
+    t = Template(s)
+    return t.safe_substitute(dirname=dirname, basename=basename)
+
+
 _modules = [
     AcquireModelSnapshot,
     AddFmuToIdfLwr,
@@ -964,9 +1042,11 @@ _modules = [
     GenerateIdf,
     Idf,
     MapEnergyPlusGeometryToCitySim,
+    MergeIdf,
     ModelSnapshot,
     RelativeFile,
     RelativePath,
+    RemoveIdfObject,
     RevitToCitySim,
     RunCitySim,
     RunEnergyPlus,
