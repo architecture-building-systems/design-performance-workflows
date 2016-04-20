@@ -427,7 +427,7 @@ def add_zone_mean_air_temperature(idf):
         'EnergyManagementSystem:Program',
         'update_zmat_variables',
         'SET gv_mat = 0',
-        *['SET gv_mat = gv_mat + zmat%i' % id_map(id(zone))
+        *['SET gv_mat = gv_mat + zmat%i / %i' % (id_map(id(zone)), len(zones(idf)))
           for zone in zones(idf)])
     return idf
 
@@ -488,7 +488,7 @@ def add_ventilation_volume_flow_rate(idf):
         'EnergyManagementSystem:Program',
         'update_vvfr_variables',
         'SET gv_vvfr = 0',
-        *['SET gv_vvfr = gv_vvfr + zvvfr%i' % id_map(id(zone))
+        *['SET gv_vvfr = gv_vvfr + zvvfr%i / %i' % (id_map(id(zone)), len(zones(idf)))
           for zone in zones(idf)])
     return idf
 

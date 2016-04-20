@@ -277,23 +277,27 @@ class SaveEnergyPlusResults(NotCacheable, Module):
     use a directory name for target_path.
     use a basename for target_name (like: test01).
     """
-    _input_ports = [('source_path', basic.Path),
-                    ('target_path', basic.Path),
-                    ('target_name', basic.String)]
+    _input_ports = [IPort(name='source_path', signature='basic:Path'),
+                    IPort(name='target_path', signature='basic:Path'),
+                    IPort(name='target_basename', signature='basic:String', optional=True)]
 
     def compute(self):
         import shutil
         source_path = self.get_input('source_path').name
         target_path = self.get_input('target_path').name
-        target_name = self.get_input('target_name')
+        target_basename = self.force_get_input('target_basename', None)
+        if not target_basename:
+            target_basename = replace_vars('$basename')
+        if not os.path.exists(target_path):
+            os.makedirs(target_path)
         shutil.copyfile(os.path.join(source_path, 'eplusout.eso'),
-                        os.path.join(target_path, target_name + '.eso'))
+                        os.path.join(target_path, target_basename + '.eso'))
         shutil.copyfile(os.path.join(source_path, 'eplusout.err'),
-                        os.path.join(target_path, target_name + '.err'))
+                        os.path.join(target_path, target_basename + '.err'))
         shutil.copyfile(os.path.join(source_path, 'eplusout.rdd'),
-                        os.path.join(target_path, target_name + '.rdd'))
+                        os.path.join(target_path, target_basename + '.rdd'))
         shutil.copyfile(os.path.join(source_path, 'in.idf'),
-                        os.path.join(target_path, target_name + '.idf'))
+                        os.path.join(target_path, target_basename + '.idf'))
 
 
 class SaveCoSimResults(NotCacheable, Module):
