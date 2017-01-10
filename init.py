@@ -19,20 +19,18 @@ from lxml import etree
 
 
 def signature(class_name):
-    '''return the signature for a port using one of the
-    module classes defined in this file'''
+    """return the signature for a port using one of the
+    module classes defined in this file"""
     from __init__ import identifier
     return ':'.join((identifier, class_name))
 
 
 class XmlElementTree(NotCacheable, Module):
-    '''
-    A module to use as output and input ports that contain
+    """A module to use as output and input ports that contain
     XML data.
 
     CONVENTION: ports with type XmlElementTree exchange
-    xml.etree.ElementTree objects.
-    '''
+    xml.etree.ElementTree objects."""
     _input_ports = [IPort(name='file',
                           signature='basic:File',
                           label='An XML file to read')]
@@ -46,13 +44,11 @@ class XmlElementTree(NotCacheable, Module):
 
 
 class ModelSnapshot(XmlElementTree):
-    '''
-    Wraps an XML serialization of a DPV ModelSnapshot object
+    """Wraps an XML serialization of a DPV ModelSnapshot object
     for use in the VisTrails system.
 
     CONVENTION: ports with type ModelSnapshot exchange
-    xml.etree.ElementTree objects.
-    '''
+    xml.etree.ElementTree objects."""
     _input_ports = [IPort(name='file',
                           signature='basic:File',
                           label='An XML file to read')]
@@ -66,13 +62,11 @@ class ModelSnapshot(XmlElementTree):
 
 
 class CitySimXml(XmlElementTree):
-    '''
-    Wraps the XML file used to describe a CitySim scene for
+    """Wraps the XML file used to describe a CitySim scene for
     use in the VisTrails system.
 
     CONVENTION: ports with type CitySimXml exchange
-    xml.etree.ElementTree objects.
-    '''
+    xml.etree.ElementTree objects."""
     _input_ports = [IPort(name='file',
                           signature='basic:File')]
     _output_ports = [OPort(name='citysim_xml',
@@ -97,17 +91,14 @@ class CastToCitySimXml(NotCacheable, Module):
 
 
 class Idf(NotCacheable, Module):
-
-    '''
-    Wraps an eppy IDF3 object for use in the VisTrails system.
+    """Wraps an eppy IDF3 object for use in the VisTrails system.
 
     the default EnergyPlus IDD file will be used if none is
     specified. This is done by looking through $PATH to find
     the EnergyPlus executable and use the `Energy+.idd` file
     in the same folder.
 
-    CONVENTION: ports with type Idf exchange eppy.IDF instances.
-    '''
+    CONVENTION: ports with type Idf exchange eppy.IDF instances."""
     _input_ports = [
         IPort(name='idf',
               signature='basic:Path',
@@ -117,6 +108,10 @@ class Idf(NotCacheable, Module):
     ]
     _output_ports = [OPort(name='idf',
                            signature=signature('Idf'))]  # noqa
+
+    def __init__(self):
+        super(Idf, self).__init__()
+        self.idf = None
 
     def compute(self):
         from eppy.modeleditor import IDF, IDDAlreadySetError
@@ -139,14 +134,12 @@ class Idf(NotCacheable, Module):
 
 
 class AcquireModelSnapshot(NotCacheable, Module):
-    '''
-    AcquireModelSnapshot acquires an xml serialization of a ModelSnapshot
+    """AcquireModelSnapshot acquires an xml serialization of a ModelSnapshot
     from Revit Architecture using the DesignPerformanceViewer plugin.
 
     It is dependant on the BIM_URL configuration parameter, that points
     to the DPV web server (typically localhost on port 8010, but the
-    port can be changed in the DPV configuration file).
-    '''
+    port can be changed in the DPV configuration file)."""
     _input_ports = [IPort(name='url',
                           signature='basic:String',
                           label='URL of DPV BIM snapshot extraction',
@@ -163,9 +156,7 @@ class AcquireModelSnapshot(NotCacheable, Module):
 
 
 class GenerateIdf(NotCacheable, Module):
-    '''
-    Send a ModelSnapshot to the BIM/DPV to be converted to an IDF file.
-    '''
+    """Send a ModelSnapshot to the BIM/DPV to be converted to an IDF file."""
     _input_ports = [IPort(name='snapshot',
                           signature=signature('ModelSnapshot')),  # noqa
                     IPort(name='url',
@@ -177,6 +168,10 @@ class GenerateIdf(NotCacheable, Module):
                         optional=True)]
     _output_ports = [OPort(name='idf',
                            signature=signature('Idf'))]  # noqa
+
+    def __init__(self):
+        super(GenerateIdf, self).__init__()
+        self.idf = None
 
     def compute(self):
         import requests
@@ -200,7 +195,6 @@ class GenerateIdf(NotCacheable, Module):
 
 
 class AddFmuToIdfLwr(NotCacheable, Module):
-
     """ Augment the IDF file with the information necessary for EnergyPlusToFMU
     and implement the CitySim/EnergyPlus interface. Includes the interface
     for LWR (replaces AddFmuToIdf)
@@ -403,11 +397,11 @@ class StripInternalLoads(NotCacheable, Module):
         import stripinternalloads
         reload(stripinternalloads)
         idf = self.getInputFromPort('idf')
-        TMP_PATH = r'C:\Users\darthoma\AppData\Local\Temp'
-        with open(os.path.join(TMP_PATH, 'strip.in.idf'), 'w') as out:
+        tempdir = tempfile.gettempdir()
+        with open(os.path.join(tempdir, 'strip.in.idf'), 'w') as out:
             out.write(idf)
         idf = stripinternalloads.process_idf(idf)
-        with open(os.path.join(TMP_PATH, 'strip.out.idf'), 'w') as out:
+        with open(os.path.join(tempdir, 'strip.out.idf'), 'w') as out:
             out.write(idf)
         self.set_output('idf', idf)
 
@@ -576,11 +570,9 @@ class RunCitySim(NotCacheable, Module):
 
 
 class XPath(NotCacheable, Module):
-    '''
-    applies an XPATH expression to a string containing
+    """applies an XPATH expression to a string containing
     xml code. The result is a list of matches, each
-    converted back to strings.
-    '''
+    converted back to strings."""
     _input_ports = [
         ('xml', basic.String),
         ('xpath', basic.String)]
@@ -594,20 +586,18 @@ class XPath(NotCacheable, Module):
         tree = etree.fromstring(xml)
         matches = tree.xpath(xpath)
 
-        def s(e):
-            if isinstance(e, etree._Element):
-                return etree.tostring(e)
-            return e
-        matches = [s(e) for e in matches]
+        def stringify(element):
+            if isinstance(element, etree._Element):
+                return etree.tostring(element)
+            return element
+        matches = [stringify(e) for e in matches]
         self.set_output('matches', matches)
 
 
 class XPathSetAttribute(NotCacheable, Module):
-    '''
-    applies an XPATH expression to a string containing
+    """applies an XPATH expression to a string containing
     xml code. The result is a list of matches, each
-    converted back to strings.
-    '''
+    converted back to strings."""
     _input_ports = [
         IPort(name='xml', signature=signature('XmlElementTree')),
         IPort(name='xpath', signature='basic:String'),
@@ -626,11 +616,9 @@ class XPathSetAttribute(NotCacheable, Module):
 
 
 class AddOutputVariable(NotCacheable, Module):
-    '''
-    adds an Output:Variable object to the IDF file.
+    """adds an Output:Variable object to the IDF file.
     input and output are both strings containing the
-    contents of the IDF file (as opposed to paths)
-    '''
+    contents of the IDF file (as opposed to paths)"""
     _input_ports = [
         ('idf', basic.String),
         ('idd_path', basic.Path),
@@ -667,12 +655,10 @@ class AddOutputVariable(NotCacheable, Module):
 
 
 class AddOutputVariableList(NotCacheable, Module):
-    '''
-    adds an Output:Variable object to the IDF file
+    """adds an Output:Variable object to the IDF file
     for each variable name in `variables`.
     input and output are both strings containing the
-    contents of the IDF file (as opposed to paths)
-    '''
+    contents of the IDF file (as opposed to paths)"""
     _input_ports = [
         IPort(name='idf',
               signature=signature('Idf')),
@@ -705,12 +691,10 @@ class AddOutputVariableList(NotCacheable, Module):
 
 
 class FileToList(NotCacheable, Module):
-    '''
-    Read in a text file and output a list
+    """Read in a text file and output a list
     with one item per line in the text file.
     Whitespace is stripped from the front and back
-    of each line (str.strip())
-    '''
+    of each line (str.strip())"""
     _input_ports = [('file', basic.Path)]
     _output_ports = [('list', basic.List)]
 
@@ -722,13 +706,11 @@ class FileToList(NotCacheable, Module):
 
 
 class CitySimToEnergyPlus(NotCacheable, Module):
-    '''
-    Extract an EnergyPlus model from a CitySim scene.
+    """Extract an EnergyPlus model from a CitySim scene.
     Uses the CitySim building id to find the building to
     extract and uses a template for the single zone HVAC
     system added. The script adds the materials and
-    constructions and surfaces to the template.
-    '''
+    constructions and surfaces to the template."""
     _input_ports = [IPort(name='citysim',
                           signature=signature('CitySimXml')),
                     IPort(name='building',
@@ -750,8 +732,7 @@ class CitySimToEnergyPlus(NotCacheable, Module):
 
 
 class MapEnergyPlusGeometryToCitySim(NotCacheable, Module):
-    '''
-    Go through each wall, roof, floor and shading surface in the
+    """Go through each wall, roof, floor and shading surface in the
     energyplus geometry and map the vertices of the idf file
     back to the citysim file.
 
@@ -762,8 +743,7 @@ class MapEnergyPlusGeometryToCitySim(NotCacheable, Module):
         - ShadingB<CitySimBuildingID>W<CitySimID>
 
     as a side effect, the epid tag is entered to all surfaces matched,
-    this is a prerequisite for co-simulation.
-    '''
+    this is a prerequisite for co-simulation."""
     _input_ports = [IPort(name='citysim',
                           signature=signature('CitySimXml')),
                     IPort(name='idf',
@@ -781,9 +761,7 @@ class MapEnergyPlusGeometryToCitySim(NotCacheable, Module):
 
 
 class WriteElementTree(NotCacheable, Module):
-    '''
-    Take an ElementTree and write it out to disc.
-    '''
+    """Take an ElementTree and write it out to disc."""
     _input_ports = [IPort(name='file',
                           signature='basic:File'),
                     IPort(name='xml',
@@ -796,9 +774,7 @@ class WriteElementTree(NotCacheable, Module):
 
 
 class WriteIdf(NotCacheable, Module):
-    '''
-    Take an IDF object and write it out to disc.
-    '''
+    """Take an IDF object and write it out to disc."""
     _input_ports = [IPort(name='idf',
                           signature=signature('Idf')),
                     IPort(name='file',
@@ -814,16 +790,14 @@ class WriteIdf(NotCacheable, Module):
 
 
 class AddIdealLoadsAirSystem(NotCacheable, Module):
-    '''
-    add the IdealLoadsAirSystem to the zones in the building. This
+    """add the IdealLoadsAirSystem to the zones in the building. This
     is already expanded, similar to what ExpandObjects.exe does.
 
     this adds an HVAC system to the output of the CitySimToEnergyPlus
     module.
 
     it requires a VENTILATIONSCHEDULE to be defined as a fraction
-    of the air_changes_per_hour to use.
-    '''
+    of the air_changes_per_hour to use."""
     _input_ports = [IPort(name='idf',
                           signature=signature('Idf')),
                     IPort(name='air_changes_per_hour',
@@ -856,12 +830,10 @@ class AddIdealLoadsAirSystem(NotCacheable, Module):
 
 
 class MergeIdf(NotCacheable, Module):
-    '''
-    Merges two idf files, left and right.
+    """Merges two idf files, left and right.
     Objects in right overwrite objects of same type / name
     in left.
-    Left is modyfied by this. And left is returned.
-    '''
+    Left is modyfied by this. And left is returned."""
     _input_ports = [IPort(name='left', signature=signature('Idf')),
                     IPort(name='right', signature=signature('Idf'))]
     _output_ports = [OPort(name='idf', signature=signature('Idf'))]
@@ -878,9 +850,7 @@ class MergeIdf(NotCacheable, Module):
 
 
 class RemoveIdfObject(NotCacheable, Module):
-    '''
-    Delete an IdfObject from an IDF file.
-    '''
+    """Delete an IdfObject from an IDF file."""
     _input_ports = [IPort(name='idf', signature=signature('Idf')),
                     IPort(name='type_name', signature='basic:String'),
                     IPort(name='name', signature='basic:String')]
@@ -897,13 +867,11 @@ class RemoveIdfObject(NotCacheable, Module):
 
 
 class RemoveIdfObjectList(NotCacheable, Module):
-    '''
-    Delete a list of IdfObjects from an IDF file.
+    """Delete a list of IdfObjects from an IDF file.
     The list is given as the path to a CSV file with
     two columns, the first is the IDF key name
     (e.g. 'SHADING:BUILDING:DETAILED'), the second is
-    the Name fields of the object to delete.
-    '''
+    the Name fields of the object to delete."""
     _input_ports = [IPort(name='idf', signature=signature('Idf')),
                     IPort(name='csv_path', signature='basic:File')]
     _output_ports = [OPort(name='idf', signature=signature('Idf'))]
@@ -924,11 +892,9 @@ class RemoveIdfObjectList(NotCacheable, Module):
 
 
 class RelativeFile(NotCacheable, Module):
-    '''
-    resolve a string denoting a path relative to the current
+    """resolve a string denoting a path relative to the current
     vistrails document to a Path object for input into other modules.
-    hint: $dirname and $basename are expanded to the vistrails workflow.
-    '''
+    hint: $dirname and $basename are expanded to the vistrails workflow."""
     _input_ports = [IPort(name='relative_file',
                           signature='basic:String')]
     _output_ports = [OPort(name='absolute_file',
@@ -947,10 +913,8 @@ class RelativeFile(NotCacheable, Module):
 
 
 class RelativePath(NotCacheable, Module):
-    '''
-    resolve a string denoting a path relative to the current
-    vistrails document to a Path object for input into other modules.
-    '''
+    """resolve a string denoting a path relative to the current
+    vistrails document to a Path object for input into other modules."""
     _input_ports = [IPort(name='relative_path',
                           signature='basic:String')]
     _output_ports = [OPort(name='absolute_path',
@@ -969,8 +933,8 @@ class RelativePath(NotCacheable, Module):
 
 
 class SimplifyShading(NotCacheable, Module):
-    '''Simplify shading surfaces in the EnergyPlus model
-    by joining rectangular adjacent, coplanar surfaces'''
+    """Simplify shading surfaces in the EnergyPlus model
+    by joining rectangular adjacent, coplanar surfaces"""
     _input_ports = [IPort(name='idf',
                           signature=signature('Idf'))]
     _output_ports = [OPort(name='idf',
@@ -985,11 +949,9 @@ class SimplifyShading(NotCacheable, Module):
 
 
 class SimplifyCitySimGeometry(NotCacheable, Module):
-    '''
-    Simplify CitySimXml geometry by joining rectangular adjacent,
+    """Simplify CitySimXml geometry by joining rectangular adjacent,
     coplanar surfaces that have the same construction and belong to
-    the same Zone in the same Building.
-    '''
+    the same Zone in the same Building."""
     _input_ports = [IPort(name='citysim_xml',
                           signature=signature('CitySimXml'))]
     _output_ports = [OPort(name='citysim_xml',
@@ -1004,9 +966,7 @@ class SimplifyCitySimGeometry(NotCacheable, Module):
 
 
 def find_idd():
-    '''
-    find the default IDD file.
-    '''
+    """find the default IDD file."""
     try:
         energyplus = find_energyplus()
         folder = os.path.dirname(energyplus)
@@ -1020,9 +980,7 @@ def find_idd():
 
 
 def find_energyplus():
-    '''
-    find the default EnergyPlus executable
-    '''
+    """find the default EnergyPlus executable"""
     import distutils.spawn
     energyplus = distutils.spawn.find_executable('EnergyPlus')
     if not energyplus:
@@ -1031,23 +989,22 @@ def find_energyplus():
 
 
 def force_get_path(module, name, default):
-    '''returns a string representing the path of a Path input module
+    """returns a string representing the path of a Path input module
     of `module` with the name `name`. If that is not set, then `default`
-    is returned.
-    '''
+    is returned."""
     value = module.force_get_input(name, None)
     if value:
         return value.name
     else:
         return default
 
+
 def replace_vars(s):
     """replaces variables in the string. Using the string.Template.
     Variables known:
         - $basename: the basename of the name of the workflow (without the
         '.vt')
-        - $dirname: the folder the workflow resides in
-    """
+        - $dirname: the folder the workflow resides in"""
     from vistrails.core import application
     from string import Template
     app = application.get_vistrails_application()

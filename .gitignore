@@ -59,3 +59,4 @@ target/
 
 .ropeproject/*
 testing/Zurich-Kloten_2013_SW.out
+.idea/*
